@@ -278,17 +278,7 @@
             localStorage.removeItem("userStudentId");
             window.location.href = "index.html";
         }
-
-        const userAvatar = document.querySelector(".user-avatar")
-        if (userAvatar) {
-            userAvatar.addEventListener("click", () => {
-                if (confirm("Deseja fazer logout?")) {
-                    logout()
-                }
-            })
-            userAvatar.style.cursor = "pointer"
-            userAvatar.title = "Clique para fazer logout"
-        }
+        
     </script>
 </body>
 </html>

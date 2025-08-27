@@ -59,12 +59,8 @@
                     <input type="file" id="fileInput" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.txt" style="display: none;">
                 </div>
                 
-                <div id="uploadProgress" class="upload-progress hidden">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+                <div id="uploadQueue" class="materials-grid">
                     </div>
-                    <p id="progressText">Fazendo upload...</p>
-                </div>
             </div>
             
             <div class="materials-management">
@@ -147,9 +143,24 @@
         
         // Processar arquivos selecionados
         function handleFiles(files) {
+            const uploadQueue = document.getElementById('uploadQueue');
             Array.from(files).forEach(file => {
                 if (validateFile(file)) {
-                    uploadFile(file);
+                    // Cria um contêiner para o progresso de cada arquivo
+                    const uploadItem = document.createElement('div');
+                    uploadItem.className = 'upload-queue-item';
+                    uploadItem.innerHTML = `
+                        <p>Fazendo upload de <strong>${file.name}</strong>...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%;"></div>
+                        </div>
+                        <p class="progress-info">Iniciando...</p>
+                    `;
+                    uploadQueue.appendChild(uploadItem);
+
+                    const progressFill = uploadItem.querySelector('.progress-fill');
+                    const progressInfo = uploadItem.querySelector('.progress-info');
+                    uploadFile(file, progressFill, progressInfo, uploadItem);
                 }
             });
         }
@@ -181,19 +192,13 @@
         }
         
         // Upload do arquivo
-        function uploadFile(file) {
-            const progressDiv = document.getElementById('uploadProgress');
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            progressDiv.classList.remove('hidden');
-            progressText.textContent = `Fazendo upload de ${file.name}...`;
-            
+        function uploadFile(file, progressFillElement, progressInfoElement, uploadItem) {
             const reader = new FileReader();
             
             reader.onload = function(e) {
+                const uniqueId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
                 const material = {
-                    id: Date.now().toString(),
+                    id: uniqueId,
                     name: file.name,
                     type: file.type,
                     size: file.size,
@@ -204,17 +209,31 @@
                 
                 saveMaterial(material);
                 
-                // Simular progresso
+                // Simular progresso e tempo de conclusão
+                const startTime = Date.now();
                 let progress = 0;
+                const totalSteps = 10;
                 const interval = setInterval(() => {
                     progress += 10;
-                    progressFill.style.width = progress + '%';
+                    progressFillElement.style.width = progress + '%';
+                    
+                    const elapsedTime = (Date.now() - startTime) / 1000; // Tempo em segundos
+                    const estimatedTotalTime = elapsedTime / (progress / 100);
+                    const timeRemaining = estimatedTotalTime - elapsedTime;
+                    
+                    if (progress < 100) {
+                        progressInfoElement.textContent = `Progresso: ${progress}% - Tempo restante: aprox. ${timeRemaining.toFixed(1)}s`;
+                    } else {
+                        progressInfoElement.textContent = 'Upload concluído!';
+                    }
                     
                     if (progress >= 100) {
                         clearInterval(interval);
                         setTimeout(() => {
-                            progressDiv.classList.add('hidden');
-                            progressFill.style.width = '0%';
+                            // Encontrar o elemento pai e removê-lo após o upload
+                            if (uploadItem) {
+                                uploadItem.remove();
+                            }
                             showGlobalMessageModal('Sucesso', `✅ ${file.name} foi enviado com sucesso!`);
                             loadMaterials();
                         }, 500);
@@ -379,20 +398,32 @@
             const materials = savedMaterials ? JSON.parse(savedMaterials) : [];
             const material = materials.find(m => m.id === materialId);
             
-            if (material && confirm(`Tem certeza que deseja excluir "${material.name}"?`)) {
-                const updatedMaterials = materials.filter(m => m.id !== materialId);
-                localStorage.setItem('courseMaterials', JSON.stringify(updatedMaterials));
-                
-                showGlobalMessageModal('Sucesso', '🗑️ Material excluído com sucesso!');
-                loadMaterials();
+            if (material) {
+                showConfirmModal('Confirmar Exclusão', `Tem certeza que deseja excluir "${material.name}"?`, () => {
+                    const updatedMaterials = materials.filter(m => m.id !== materialId);
+                    localStorage.setItem('courseMaterials', JSON.stringify(updatedMaterials));
+                    
+                    showGlobalMessageModal('Sucesso', '🗑️ Material excluído com sucesso!');
+                    loadMaterials();
+                });
             }
         }
         
         // Excluir material (do modal)
         function deleteMaterial() {
-            if (currentEditingId && confirm('Tem certeza que deseja excluir este material?')) {
-                confirmDelete(currentEditingId);
-                closeEditModal();
+            if (currentEditingId) {
+                const savedMaterials = localStorage.getItem('courseMaterials');
+                const materials = savedMaterials ? JSON.parse(savedMaterials) : [];
+                const material = materials.find(m => m.id === currentEditingId);
+
+                showConfirmModal('Confirmar Exclusão', `Tem certeza que deseja excluir "${material.name}"?`, () => {
+                    const updatedMaterials = materials.filter(m => m.id !== currentEditingId);
+                    localStorage.setItem('courseMaterials', JSON.stringify(updatedMaterials));
+                    
+                    showGlobalMessageModal('Sucesso', '🗑️ Material excluído com sucesso!');
+                    closeEditModal();
+                    loadMaterials();
+                });
             }
         }
     </script>

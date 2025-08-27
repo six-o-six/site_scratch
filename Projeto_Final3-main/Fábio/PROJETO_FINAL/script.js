@@ -41,6 +41,26 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>`;
   document.body.insertAdjacentHTML('beforeend', messageModalHtml);
 
+  // ADIÇÃO: Novo modal de confirmação com 2 botões
+  const confirmModalHtml = `
+      <div id="confirmModal" class="modal hidden">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h3 id="confirmModalTitle"></h3>
+                  <button class="close-btn" onclick="closeConfirmModal()">×</button>
+              </div>
+              <div class="modal-body">
+                  <p id="confirmModalText"></p>
+              </div>
+              <div class="modal-footer">
+                  <button class="action-btn secondary" id="cancelConfirmModalBtn">Cancelar</button>
+                  <button class="action-btn primary" id="doConfirmModalBtn">Confirmar</button>
+              </div>
+          </div>
+      </div>`;
+  document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
+
+
   window.showGlobalMessageModal = function(title, message) {
       document.getElementById('globalMessageModalTitle').textContent = title;
       document.getElementById('globalMessageModalText').textContent = message;
@@ -49,6 +69,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.closeGlobalMessageModal = function() {
       document.getElementById('globalMessageModal').classList.add('hidden');
+  }
+
+  window.showConfirmModal = function(title, message, onConfirmCallback) {
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmModalTitle = document.getElementById('confirmModalTitle');
+    const confirmModalText = document.getElementById('confirmModalText');
+    const doConfirmBtn = document.getElementById('doConfirmModalBtn');
+    const cancelConfirmBtn = document.getElementById('cancelConfirmModalBtn');
+    
+    confirmModalTitle.textContent = title;
+    confirmModalText.textContent = message;
+    
+    // Remove listeners antigos para evitar múltiplas chamadas
+    doConfirmBtn.onclick = null;
+    cancelConfirmBtn.onclick = null;
+
+    // Define os novos listeners
+    doConfirmBtn.onclick = () => {
+      onConfirmCallback();
+      closeConfirmModal();
+    };
+
+    cancelConfirmBtn.onclick = () => {
+      closeConfirmModal();
+    };
+    
+    confirmModal.classList.remove('hidden');
+  }
+
+  window.closeConfirmModal = function() {
+    document.getElementById('confirmModal').classList.add('hidden');
   }
 
 
@@ -432,90 +483,90 @@ document.addEventListener("DOMContentLoaded", () => {
   function validateAlunoForm(alunoData, isEdit = false) {
       // Validação de campos obrigatórios e ENUMs (selects)
       if (!alunoData.turma) {
-          alert('Campo "Turma" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Turma" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       if (!alunoData.nome) {
-          alert('Campo "Nome" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Nome" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       if (!alunoData.cpf) { // CPF é obrigatório
-          alert('Campo "CPF" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "CPF" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       if (!alunoData.responsavel) { // Responsável é obrigatório
-          alert('Campo "Responsável" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Responsável" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       if (!alunoData.escolaridade) {
-          alert('Campo "Escolaridade" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Escolaridade" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       if (!alunoData.escola) {
-          alert('Campo "Escola" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Escola" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
       // Data de nascimento é obrigatória apenas na adição, se não for edição e campo for vazio
       if (!isEdit && !alunoData.data_nascimento) {
-          alert('Campo "Data de Nascimento" é obrigatório.');
+          showGlobalMessageModal('Atenção', 'Campo "Data de Nascimento" é obrigatório.'); // MODIFICAÇÃO
           return false;
       }
 
 
       // REGRA: nome (até 70 caracteres; não deve receber números ou símbolos)
       if (alunoData.nome.length > 70) {
-          alert('Campo "Nome" deve ter no máximo 70 caracteres.');
+          showGlobalMessageModal('Atenção', 'Campo "Nome" deve ter no máximo 70 caracteres.'); // MODIFICAÇÃO
           return false;
       }
       // Verifica se contém números ou símbolos (permite acentuação e espaços)
       if (/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(alunoData.nome)) {
-          alert('Campo "Nome" não deve conter números ou símbolos.');
+          showGlobalMessageModal('Atenção', 'Campo "Nome" não deve conter números ou símbolos.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: email (até 50 caracteres)
       if (alunoData.email && alunoData.email.length > 50) {
-          alert('Campo "Email" deve ter no máximo 50 caracteres.');
+          showGlobalMessageModal('Atenção', 'Campo "Email" deve ter no máximo 50 caracteres.'); // MODIFICAÇÃO
           return false;
       }
       // REGRA: email (formato básico de email)
       if (alunoData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(alunoData.email)) {
-          alert('Campo "Email" inválido. Por favor, insira um formato de email válido.');
+          showGlobalMessageModal('Atenção', 'Campo "Email" inválido. Por favor, insira um formato de email válido.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: telefone (até 11 números; receber apenas números)
       if (alunoData.telefone && !/^[0-9]{0,11}$/.test(alunoData.telefone)) {
-          alert('Campo "Telefone" deve conter apenas números e ter no máximo 11 dígitos.');
+          showGlobalMessageModal('Atenção', 'Campo "Telefone" deve conter apenas números e ter no máximo 11 dígitos.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: rg (7 a 9 números; receber apenas números)
       if (alunoData.rg && !/^[0-9]{7,9}$/.test(alunoData.rg)) {
-          alert('Campo "RG" deve conter apenas números e ter entre 7 e 9 dígitos.');
+          showGlobalMessageModal('Atenção', 'Campo "RG" deve conter apenas números e ter entre 7 e 9 dígitos.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: cpf (11 números; receber apenas números)
       if (alunoData.cpf && !/^[0-9]{11}$/.test(alunoData.cpf)) {
-          alert('Campo "CPF" deve conter apenas números e ter 11 dígitos.');
+          showGlobalMessageModal('Atenção', 'Campo "CPF" deve conter apenas números e ter 11 dígitos.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: endereco (até 100 caracteres)
       if (alunoData.endereco && alunoData.endereco.length > 100) {
-          alert('Campo "Endereço" deve ter no máximo 100 caracteres.');
+          showGlobalMessageModal('Atenção', 'Campo "Endereço" deve ter no máximo 100 caracteres.'); // MODIFICAÇÃO
           return false;
       }
 
       // REGRA: responsavel (até 70 caracteres; não deve receber números ou símbolos)
       if (alunoData.responsavel.length > 70) {
-          alert('Campo "Responsável" deve ter no máximo 70 caracteres.');
+          showGlobalMessageModal('Atenção', 'Campo "Responsável" deve ter no máximo 70 caracteres.'); // MODIFICAÇÃO
           return false;
       }
       // Verifica se contém números ou símbolos (permite acentuação e espaços)
       if (/[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(alunoData.responsavel)) {
-          alert('Campo "Responsável" não deve conter números ou símbolos.');
+          showGlobalMessageModal('Atenção', 'Campo "Responsável" não deve conter números ou símbolos.'); // MODIFICAÇÃO
           return false;
       }
       
@@ -531,7 +582,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
           // MODIFICAÇÃO: Lógica para adicionar em outras tabelas, se necessário
           // Por exemplo, para classes, atividades, etc.
-          alert(`Funcionalidade de adicionar ainda não implementada para a tabela: ${selectedTable}`);
+          showGlobalMessageModal('Atenção', `Funcionalidade de adicionar ainda não implementada para a tabela: ${selectedTable}`); // MODIFICAÇÃO
       }
   }
   
@@ -598,8 +649,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- LÓGICA PARA DELETAR ALUNO ---
   window.deleteAluno = async function(alunoId) { // MODIFICAÇÃO: Adicionado 'async'
-      if (confirm(`Tem certeza que deseja excluir o aluno com ID ${alunoId}?`)) {
-        showLoading(); // ADIÇÃO
+      showConfirmModal('Confirmar Exclusão', `Tem certeza que deseja excluir o aluno com ID ${alunoId}?`, async () => {
+          showLoading(); // ADIÇÃO
           try {
               const response = await fetch(`http://127.0.0.1:5000/alunos/delete/${alunoId}`, {
                   method: 'DELETE',
@@ -618,7 +669,7 @@ document.addEventListener("DOMContentLoaded", () => {
           } finally {
             hideLoading(); // ADIÇÃO
           }
-      }
+      });
   };
 
 
@@ -768,12 +819,9 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log('Elemento .user-avatar encontrado:', userAvatar);
       userAvatar.addEventListener("click", () => {
         console.log('Clique no .user-avatar detectado.');
-        if (confirm("Deseja fazer logout?")) {
-          console.log('Confirmação de logout aceita. Chamando logout().');
-          logout()
-        } else {
-          console.log('Confirmação de logout cancelada.');
-        }
+        showConfirmModal('Confirmar Logout', 'Você tem certeza que deseja fazer logout?', () => {
+            logout();
+        });
       })
       userAvatar.style.cursor = "pointer"
       userAvatar.title = "Clique para fazer logout"
@@ -853,8 +901,8 @@ window.searchTable = function() {
 window.editRecord = function() {
     const selectedTable = document.getElementById('tableSelect').value;
     if (selectedTable === 'info_alunos') {
-        alert('Clique nos botões "✏️" ao lado de cada aluno para editar.');
+        showGlobalMessageModal('Instrução', 'Clique nos botões "✏️" ao lado de cada aluno para editar.'); // MODIFICAÇÃO
     } else {
-        alert(`Funcionalidade de edição ainda não implementada para a tabela: ${selectedTable}`);
+        showGlobalMessageModal('Atenção', `Funcionalidade de edição ainda não implementada para a tabela: ${selectedTable}`); // MODIFICAÇÃO
     }
 };

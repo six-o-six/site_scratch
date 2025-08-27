@@ -75,22 +75,6 @@
             </div>
         </main>
     </div>
-
-    <div id="messageModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="messageModalTitle"></h3>
-                <button class="close-btn" onclick="closeMessageModal()">×</button>
-            </div>
-            <div class="modal-body">
-                <p id="messageModalText"></p>
-            </div>
-            <div class="modal-footer">
-                <button class="action-btn primary" onclick="closeMessageModal()">OK</button>
-            </div>
-        </div>
-    </div>
-
     <script src="script.js"></script>
     <script>
         let allClasses = [];
@@ -102,18 +86,6 @@
             await fetchStudents();
             // Nenhuma aula selecionada inicialmente, então a tabela de presença estará vazia.
         });
-
-        // Função para exibir o modal de mensagem
-        function showMessageModal(title, message) {
-            document.getElementById('messageModalTitle').textContent = title;
-            document.getElementById('messageModalText').textContent = message;
-            document.getElementById('messageModal').classList.remove('hidden');
-        }
-
-        // Função para fechar o modal de mensagem
-        function closeMessageModal() {
-            document.getElementById('messageModal').classList.add('hidden');
-        }
 
         async function fetchClasses() {
             showLoading();

@@ -1142,7 +1142,6 @@ body {
 /* .status-badge.pending { ... } */
 /* .status-badge.draft { ... } */
 /* .activity-stats { ... } */
-/* .activity-stats .stat-item { ... } */
 /* .stat-icon { ... } */
 /* .activity-actions { ... } */
 /* .general-actions { ... } */
@@ -1278,4 +1277,26 @@ body {
 .message-modal-content p {
     color: #333;
     margin-bottom: 20px;
+}
+
+/* ADIÇÃO: Estilos para o modal de confirmação */
+#confirmModal .modal-footer {
+    display: flex;
+    justify-content: space-around;
+}
+
+/* ADIÇÃO: Estilos para o container de uploads simultâneos */
+.upload-queue-item {
+    background: #f0f8ff;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #cce5ff;
+    margin-bottom: 10px;
+}
+
+/* ADIÇÃO: Estilo para mostrar tempo de conclusão */
+.progress-info {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 10px;
 }
