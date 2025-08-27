@@ -24,9 +24,10 @@ CREATE TABLE IF NOT EXISTS alunos (
 -- Insere um aluno inicial na tabela 'alunos'
 INSERT INTO alunos (turma, nome, email, telefone, data_nascimento, rg, cpf, endereco, escolaridade, escola, responsavel) VALUES
 ('25.1 - T1', 'Fulano de Tal', 'fulanodetal@gmail.com', '81912345678', '2010-01-01', '1234567', '12345678910', 'Rua dos Bobos - nº 0', '8º ano', 'Pública', 'Fulana de Tal'),
-('25.1 - T1', 'Maria Santos', 'maria.santos@gmail.com', '81911112222', '2010-05-12', '1234567', '12345678901', 'Rua das Flores, nº 10', '8º ano', 'Pública', 'Ana Santos'),
 ('25.1 - T1', 'João Oliveira', 'joao.oliveira@gmail.com', '81933334444', '2010-08-25', '2345678', '23456789012', 'Rua das Palmeiras, nº 20', '8º ano', 'Pública', 'Carlos Oliveira')
 ON DUPLICATE KEY UPDATE nome=VALUES(nome); -- Evita erro se o aluno já existir por CPF ou email
+
+select * from users;
 
 -- 2. Cria a tabela 'users'
 CREATE TABLE IF NOT EXISTS users (
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    role ENUM('student', 'teacher', 'admin') NOT NULL, -- O 'admin' será removido posteriormente pelo ALTER TABLE
+    role ENUM('student', 'teacher') NOT NULL,
     student_id INT UNIQUE,
     last_login DATETIME,
     total_logins INT DEFAULT 0,
@@ -44,11 +45,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Insere usuários iniciais na tabela 'users'
 INSERT INTO users (username, password_hash, full_name, role, student_id, last_login, total_logins, online_status) VALUES
-('programacao', 'scrypt:32768:8:1$MQN1vNMTRKLalFNe$60a78c8315739dc1198bedab10e6e7bbabad29e7c12917d748306fea4ca1f8cc721a7ae616e6ff842c792bffb3872e4949cf5759a96b6feecaba6b7c97678632', 'Fulano de Tal', 'student', NULL, NULL, 0, 'Offline'),
-('professor', 'scrypt:32768:8:1$t7OyXy7NDbPAqplM$a0e9a7ba25f8308f5b92e54b357a6a9db5dfe6c6bbef4f0238443c39c1e2e701dae69b710dbe1debd86eedd6bfc46e7c2c01f69c9c77fdfb8c940f05696007bc', 'Prof. Silva', 'teacher', NULL, NULL, 0, 'Offline'),
-('aluno1', 'scrypt:32768:8:1$iqPpj87su8idH0ab$9aff10936e3ea266527cb24113f4e855e6d0c516c8fd7c2059eb009a9ba76a547ee3fbd9d7b95940dc934a38af5ef1efb87f299edb01d875388fbe0572e9422b', 'Maria Santos', 'student', NULL, NULL, 0, 'Offline'),
-('aluno2', 'scrypt:32768:8:1$FiqaVRGNC2mcdNPd$c0ec0f5d65c535438a98e477d7e81505fe4bb98c859d25174a5938d2ff2fc9aff20e5f98ed12fa56e338ad74dc773c7587917693496b3ea1543989055bd794b9', 'João Oliveira', 'student', NULL, NULL, 0, 'Offline'),
-('admin', 'scrypt:32768:8:1$GHx0BNbZKEME07Kw$369c25a2741090d77b92b933d8f11d6c527d01c1dd8ddd2bc1b34fc0797b2129b25283564ff5391e06c1ccbc148ca7258fe27ca9c1e65b213ae1e084ed6b4e00', 'Administrador', 'teacher', NULL, NULL, 0, 'Offline')
+('programacao', 'scrypt:32768:8:1$MQN1vNMTRKLalFNe$60a78c8315739dc1198bedab10e6e7bbabad29e7c12917d748306fea4ca1f8cc721a7ae616e6ff842c792bffb3872e4949cf5759a96b6feecaba6b7c97678632', 'Fulano de Tal', 'student', 1, NULL, 0, 'Offline'),
+('professor', 'scrypt:32768:8:1$t7OyXy7NDbPAqplM$a0e9a7ba25f8308f5b92e54b357a6a9db5dfe6c6bbef4f0238443c39c1e2e701dae69b710dbe1debd86eedd6bfc46e7c2c01f69c9c77fdfb8c940f05696007bc', 'Prof. Silva', 'teacher', 2, NULL, 0, 'Offline')
 ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), full_name=VALUES(full_name), role=VALUES(role); -- Evita erro se o usuário já existir por username
 
 -- 3. Cria a tabela 'classes'
@@ -121,7 +119,3 @@ CREATE TABLE IF NOT EXISTS atividades_alunos (
     total_enviadas SMALLINT DEFAULT 0,
     FOREIGN KEY (id) REFERENCES alunos(id) ON DELETE CASCADE
 );
-
-ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher') NOT NULL;
-
-select * from alunos;
