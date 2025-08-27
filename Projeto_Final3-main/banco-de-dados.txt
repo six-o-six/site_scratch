@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS alunos (
 
 -- Insere um aluno inicial na tabela 'alunos'
 INSERT INTO alunos (turma, nome, email, telefone, data_nascimento, rg, cpf, endereco, escolaridade, escola, responsavel) VALUES
-('25.1 - T1', 'Fulano de Tal', 'fulanodetal@gmail.com', '81912345678', '2010-01-01', '1234567', '12345678910', 'Rua dos Bobos - nº 0', '8º ano', 'Pública', 'Fulana de Tal')
+('25.1 - T1', 'Fulano de Tal', 'fulanodetal@gmail.com', '81912345678', '2010-01-01', '1234567', '12345678910', 'Rua dos Bobos - nº 0', '8º ano', 'Pública', 'Fulana de Tal'),
+('25.1 - T1', 'Maria Santos', 'maria.santos@gmail.com', '81911112222', '2010-05-12', '1234567', '12345678901', 'Rua das Flores, nº 10', '8º ano', 'Pública', 'Ana Santos'),
+('25.1 - T1', 'João Oliveira', 'joao.oliveira@gmail.com', '81933334444', '2010-08-25', '2345678', '23456789012', 'Rua das Palmeiras, nº 20', '8º ano', 'Pública', 'Carlos Oliveira')
 ON DUPLICATE KEY UPDATE nome=VALUES(nome); -- Evita erro se o aluno já existir por CPF ou email
 
 -- 2. Cria a tabela 'users'
