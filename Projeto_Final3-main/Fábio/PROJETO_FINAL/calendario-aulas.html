@@ -80,8 +80,7 @@
                     <div class="calendar-grid">
                         <h3>📋 Cronograma das Aulas</h3>
                         <div id="classSchedule" class="class-schedule">
-                            <!-- Aulas serão carregadas aqui -->
-                        </div>
+                            </div>
                     </div>
                     
                     <div class="legend">
@@ -110,17 +109,14 @@
         </main>
     </div>
     
-    <!-- Modal de Edição/Adição de Aula -->
     <div id="editModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modalTitle"></h3> <!-- Título dinâmico para Adicionar/Editar -->
-                <button class="close-btn" onclick="fecharModal()">×</button>
+                <h3 id="modalTitle"></h3> <button class="close-btn" onclick="fecharModal()">×</button>
             </div>
             <div class="modal-body">
                 <form id="classForm">
-                    <input type="hidden" id="classId"> <!-- Campo oculto para o ID da aula -->
-                    <div class="form-group">
+                    <input type="hidden" id="classId"> <div class="form-group">
                         <label for="classTitle">Título da Aula:</label>
                         <input type="text" id="classTitle" required>
                     </div>
@@ -153,7 +149,6 @@
         </div>
     </div>
 
-    <!-- Modal de Confirmação de Exclusão -->
     <div id="deleteConfirmModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -170,7 +165,6 @@
         </div>
     </div>
 
-    <!-- Modal de Mensagem (para substituir alerts) -->
     <div id="messageModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -234,6 +228,7 @@
         async function loadSchedule() {
             const scheduleContainer = document.getElementById('classSchedule');
             scheduleContainer.innerHTML = ''; // Limpa o conteúdo existente
+            showLoading();
             try {
                 const response = await fetch('http://127.0.0.1:5000/classes');
                 if (!response.ok) {
@@ -283,7 +278,9 @@
             } catch (error) {
                 console.error('Erro ao buscar aulas do backend:', error);
                 scheduleContainer.innerHTML = '<p style="text-align: center; color: red;">Erro ao carregar o cronograma de aulas.</p>';
-                showMessageModal('Erro', 'Não foi possível carregar o cronograma de aulas.');
+                showGlobalMessageModal('Erro', 'Não foi possível carregar o cronograma de aulas.');
+            } finally {
+                hideLoading();
             }
         }
         
@@ -323,10 +320,11 @@
         // Função para abrir o modal de edição de aula
         async function editarAula() {
             if (!selectedClassId) {
-                showMessageModal('Atenção', 'Selecione uma aula para editar.');
+                showGlobalMessageModal('Atenção', 'Selecione uma aula para editar.');
                 return;
             }
             
+            showLoading();
             try {
                 const response = await fetch(`http://127.0.0.1:5000/classes/${selectedClassId}`);
                 if (!response.ok) {
@@ -344,18 +342,20 @@
                     
                     document.getElementById('editModal').classList.remove('hidden');
                 } else {
-                    showMessageModal('Erro', 'Aula não encontrada para edição.');
+                    showGlobalMessageModal('Erro', 'Aula não encontrada para edição.');
                 }
             } catch (error) {
                 console.error('Erro ao buscar dados da aula para edição:', error);
-                showMessageModal('Erro', 'Não foi possível carregar os dados da aula para edição.');
+                showGlobalMessageModal('Erro', 'Não foi possível carregar os dados da aula para edição.');
+            } finally {
+                hideLoading();
             }
         }
         
         // Função para remover aula
         function removerAula() {
             if (!selectedClassId) {
-                showMessageModal('Atenção', 'Selecione uma aula para remover.');
+                showGlobalMessageModal('Atenção', 'Selecione uma aula para remover.');
                 return;
             }
             const classItem = allFetchedClasses.find(c => c.id === selectedClassId);
@@ -363,32 +363,35 @@
                 document.getElementById('deleteClassTitleConfirm').textContent = classItem.title;
                 document.getElementById('deleteConfirmModal').classList.remove('hidden');
             } else {
-                showMessageModal('Erro', 'Aula não encontrada para remoção.');
+                showGlobalMessageModal('Erro', 'Aula não encontrada para remoção.');
             }
         }
 
         // Função para confirmar a remoção da aula após o modal de confirmação
         async function confirmarRemocaoAula() {
             if (!selectedClassId) {
-                showMessageModal('Erro', 'Nenhuma aula selecionada para remoção.');
+                showGlobalMessageModal('Erro', 'Nenhuma aula selecionada para remoção.');
                 return;
             }
+            showLoading();
             try {
                 const response = await fetch(`http://127.0.0.1:5000/classes/delete/${selectedClassId}`, {
                     method: 'DELETE',
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showMessageModal('Sucesso', 'Aula removida com sucesso!');
+                    showGlobalMessageModal('Sucesso', 'Aula removida com sucesso!');
                     fecharDeleteConfirmModal();
                     await loadSchedule(); // Recarrega a lista de aulas
                     selectedClassId = null; // Limpa a seleção
                 } else {
-                    showMessageModal('Erro', 'Erro ao remover aula: ' + (data.message || 'Erro desconhecido.'));
+                    showGlobalMessageModal('Erro', 'Erro ao remover aula: ' + (data.message || 'Erro desconhecido.'));
                 }
             } catch (error) {
                 console.error('Erro de rede ou servidor ao remover aula:', error);
-                showMessageModal('Erro', 'Erro de conexão ou servidor ao remover aula.');
+                showGlobalMessageModal('Erro', 'Erro de conexão ou servidor ao remover aula.');
+            } finally {
+                hideLoading();
             }
         }
         
@@ -400,7 +403,7 @@
             const description = document.getElementById('classDescription').value;
             
             if (!title || !date) {
-                showMessageModal('Atenção', 'Título e Data são obrigatórios.');
+                showGlobalMessageModal('Atenção', 'Título e Data são obrigatórios.');
                 return;
             }
 
@@ -413,6 +416,7 @@
                 method = 'PUT';
             }
 
+            showLoading();
             try {
                 const response = await fetch(url, {
                     method: method,
@@ -424,16 +428,18 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showMessageModal('Sucesso', `Aula ${selectedClassId ? 'atualizada' : 'adicionada'} com sucesso!`);
+                    showGlobalMessageModal('Sucesso', `Aula ${selectedClassId ? 'atualizada' : 'adicionada'} com sucesso!`);
                     fecharModal();
                     await loadSchedule(); // Recarrega a lista de aulas
                     selectedClassId = null; // Limpa a seleção
                 } else {
-                    showMessageModal('Erro', `Erro ao ${selectedClassId ? 'atualizar' : 'adicionar'} aula: ` + (data.message || 'Erro desconhecido.'));
+                    showGlobalMessageModal('Erro', `Erro ao ${selectedClassId ? 'atualizar' : 'adicionar'} aula: ` + (data.message || 'Erro desconhecido.'));
                 }
             } catch (error) {
                 console.error('Erro de rede ou servidor ao salvar aula:', error);
-                showMessageModal('Erro', 'Erro de conexão ou servidor ao salvar aula.');
+                showGlobalMessageModal('Erro', 'Erro de conexão ou servidor ao salvar aula.');
+            } finally {
+                hideLoading();
             }
         }
         

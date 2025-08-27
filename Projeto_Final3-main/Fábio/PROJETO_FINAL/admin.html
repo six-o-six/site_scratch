@@ -1,4 +1,4 @@
-=<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -56,8 +56,7 @@
                         <div class="action-icon">➕</div>
                         <div class="action-text">Adicionar Novo Usuário</div>
                     </a>
-                    <!-- Os botões de Editar e Deletar foram removidos daqui, pois as ações serão feitas diretamente na tabela de listagem -->
-                </div>
+                    </div>
             </div>
 
             <div class="admin-user-list">
@@ -74,19 +73,16 @@
                                 <th>Total de Logins</th>
                                 <th>Status Online</th>
                                 <th>ID de Aluno (se aplicável)</th>
-                                <th>Ações</th> <!-- Nova coluna para botões de ação -->
-                            </tr>
+                                <th>Ações</th> </tr>
                         </thead>
                         <tbody id="userListTableBody">
-                            <!-- Usuários serão carregados aqui via JavaScript -->
-                        </tbody>
+                            </tbody>
                     </table>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Modal para Adicionar Novo Usuário (já existente) -->
     <div id="addUserModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -125,7 +121,6 @@
         </div>
     </div>
 
-    <!-- NOVO: Modal de Edição de Usuário -->
     <div id="editUserModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -165,7 +160,6 @@
         </div>
     </div>
 
-    <!-- NOVO: Modal de Confirmação de Exclusão -->
     <div id="deleteUserConfirmModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -194,6 +188,9 @@
         });
 
         async function fetchUserList() {
+            const tbody = document.getElementById('userListTableBody');
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center;">Carregando usuários...</td></tr>`;
+            showLoading();
             try {
                 const response = await fetch('http://127.0.0.1:5000/users');
                 if (!response.ok) {
@@ -203,10 +200,12 @@
                 displayUserList(users);
             } catch (error) {
                 console.error('Erro ao buscar lista de usuários:', error);
-                const tbody = document.getElementById('userListTableBody');
                 if (tbody) {
                     tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">Erro ao carregar lista de usuários.</td></tr>`; // Colspan ajustado para 9
                 }
+                showGlobalMessageModal('Erro', 'Erro ao carregar a lista de usuários.');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -267,10 +266,11 @@
                 
                 // Validações básicas (pode expandir)
                 if (!userData.username || !userData.password || !userData.role) {
-                    alert('Nome de usuário, senha e perfil são obrigatórios.');
+                    showGlobalMessageModal('Atenção', 'Nome de usuário, senha e perfil são obrigatórios.');
                     return;
                 }
 
+                showLoading();
                 try {
                     const response = await fetch('http://127.0.0.1:5000/users/add', {
                         method: 'POST',
@@ -281,15 +281,17 @@
                     });
                     const data = await response.json();
                     if (data.success) {
-                        alert('Usuário adicionado com sucesso!');
+                        showGlobalMessageModal('Sucesso', 'Usuário adicionado com sucesso!');
                         closeAddUserModal();
                         fetchUserList(); // Recarrega a lista
                     } else {
-                        alert('Erro ao adicionar usuário: ' + (data.message || 'Erro desconhecido.'));
+                        showGlobalMessageModal('Erro', 'Erro ao adicionar usuário: ' + (data.message || 'Erro desconhecido.'));
                     }
                 } catch (error) {
                     console.error('Erro de rede ou servidor ao adicionar usuário:', error);
-                    alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+                    showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.');
+                } finally {
+                    hideLoading();
                 }
             });
         }
@@ -297,6 +299,7 @@
         // Funções para o modal de edição de usuário
         window.openEditUserModal = async function(userId) {
             currentEditingUserId = userId; // Armazena o ID do usuário
+            showLoading();
             try {
                 const response = await fetch(`http://127.0.0.1:5000/users/${userId}`);
                 if (!response.ok) {
@@ -315,7 +318,9 @@
                 document.getElementById('editUserModal').classList.remove('hidden');
             } catch (error) {
                 console.error('Erro ao buscar dados do usuário para edição:', error);
-                alert('Erro ao carregar dados do usuário para edição. Tente novamente.');
+                showGlobalMessageModal('Erro', 'Erro ao carregar dados do usuário para edição. Tente novamente.');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -341,6 +346,7 @@
                     delete userData.password;
                 }
 
+                showLoading();
                 try {
                     const response = await fetch(`http://127.0.0.1:5000/users/edit/${currentEditingUserId}`, {
                         method: 'PUT',
@@ -351,15 +357,17 @@
                     });
                     const data = await response.json();
                     if (data.success) {
-                        alert('Usuário atualizado com sucesso!');
+                        showGlobalMessageModal('Sucesso', 'Usuário atualizado com sucesso!');
                         closeEditUserModal();
                         fetchUserList(); // Recarrega a lista
                     } else {
-                        alert('Erro ao atualizar usuário: ' + (data.message || 'Erro desconhecido.'));
+                        showGlobalMessageModal('Erro', 'Erro ao atualizar usuário: ' + (data.message || 'Erro desconhecido.'));
                     }
                 } catch (error) {
                     console.error('Erro de rede ou servidor ao atualizar usuário:', error);
-                    alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+                    showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.');
+                } finally {
+                    hideLoading();
                 }
             });
         }
@@ -381,25 +389,28 @@
 
         window.confirmDeleteUser = async function() {
             if (currentDeletingUserId === null) {
-                alert('Nenhum usuário selecionado para exclusão.');
+                showGlobalMessageModal('Atenção', 'Nenhum usuário selecionado para exclusão.');
                 return;
             }
 
+            showLoading();
             try {
                 const response = await fetch(`http://127.0.0.1:5000/users/delete/${currentDeletingUserId}`, {
                     method: 'DELETE',
                 });
                 const data = await response.json();
                 if (data.success) {
-                    alert('Usuário excluído com sucesso!');
+                    showGlobalMessageModal('Sucesso', 'Usuário excluído com sucesso!');
                     closeDeleteUserConfirmModal();
                     fetchUserList(); // Recarrega a lista
                 } else {
-                    alert('Erro ao excluir usuário: ' + (data.message || 'Erro desconhecido.'));
+                    showGlobalMessageModal('Erro', 'Erro ao excluir usuário: ' + (data.message || 'Erro desconhecido.'));
                 }
             } catch (error) {
                 console.error('Erro de rede ou servidor ao excluir usuário:', error);
-                alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+                showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.');
+            } finally {
+                hideLoading();
             }
         }
     </script>

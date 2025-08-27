@@ -168,12 +168,12 @@
             const maxSize = 50 * 1024 * 1024; // 50MB
             
             if (!allowedTypes.includes(file.type)) {
-                alert(`Formato não suportado: ${file.name}`);
+                showGlobalMessageModal('Atenção', `Formato não suportado: ${file.name}`);
                 return false;
             }
             
             if (file.size > maxSize) {
-                alert(`Arquivo muito grande: ${file.name} (máx. 50MB)`);
+                showGlobalMessageModal('Atenção', `Arquivo muito grande: ${file.name} (máx. 50MB)`);
                 return false;
             }
             
@@ -215,7 +215,7 @@
                         setTimeout(() => {
                             progressDiv.classList.add('hidden');
                             progressFill.style.width = '0%';
-                            alert(`✅ ${file.name} foi enviado com sucesso!`);
+                            showGlobalMessageModal('Sucesso', `✅ ${file.name} foi enviado com sucesso!`);
                             loadMaterials();
                         }, 500);
                     }
@@ -354,7 +354,7 @@
             const newDescription = document.getElementById('editDescription').value.trim();
             
             if (!newName) {
-                alert('Nome do arquivo é obrigatório!');
+                showGlobalMessageModal('Atenção', 'Nome do arquivo é obrigatório!');
                 return;
             }
             
@@ -367,7 +367,7 @@
                 materials[materialIndex].description = newDescription;
                 localStorage.setItem('courseMaterials', JSON.stringify(materials));
                 
-                alert('✅ Material atualizado com sucesso!');
+                showGlobalMessageModal('Sucesso', '✅ Material atualizado com sucesso!');
                 closeEditModal();
                 loadMaterials();
             }
@@ -383,7 +383,7 @@
                 const updatedMaterials = materials.filter(m => m.id !== materialId);
                 localStorage.setItem('courseMaterials', JSON.stringify(updatedMaterials));
                 
-                alert('🗑️ Material excluído com sucesso!');
+                showGlobalMessageModal('Sucesso', '🗑️ Material excluído com sucesso!');
                 loadMaterials();
             }
         }

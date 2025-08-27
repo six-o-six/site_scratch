@@ -70,14 +70,12 @@
                         </tr>
                     </thead>
                     <tbody id="attendanceTableBody">
-                        <!-- Alunos e status de presença serão carregados aqui -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </main>
     </div>
 
-    <!-- Modal de Mensagem (para substituir alerts) -->
     <div id="messageModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -118,6 +116,7 @@
         }
 
         async function fetchClasses() {
+            showLoading();
             try {
                 const response = await fetch('http://127.0.0.1:5000/classes');
                 if (!response.ok) {
@@ -127,7 +126,9 @@
                 populateClassSelect(allClasses);
             } catch (error) {
                 console.error('Erro ao buscar aulas:', error);
-                showMessageModal('Erro', 'Não foi possível carregar a lista de aulas.');
+                showGlobalMessageModal('Erro', 'Não foi possível carregar a lista de aulas.');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -143,6 +144,7 @@
         }
 
         async function fetchStudents() {
+            showLoading();
             try {
                 const response = await fetch('http://127.0.0.1:5000/alunos'); // Rota para buscar todos os alunos
                 if (!response.ok) {
@@ -153,7 +155,9 @@
                 allStudents.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
             } catch (error) {
                 console.error('Erro ao buscar alunos:', error);
-                showMessageModal('Erro', 'Não foi possível carregar a lista de alunos.');
+                showGlobalMessageModal('Erro', 'Não foi possível carregar a lista de alunos.');
+            } finally {
+                hideLoading();
             }
         }
 
@@ -166,7 +170,7 @@
                 currentAttendanceRecords = [];
                 return; // Nenhuma aula selecionada
             }
-
+            showLoading();
             try {
                 const response = await fetch('http://127.0.0.1:5000/attendance'); // Busca todos os registros
                 if (!response.ok) {
@@ -179,7 +183,18 @@
 
             } catch (error) {
                 console.error('Erro ao buscar registros de presença:', error);
-                showMessageModal('Erro', 'Não foi possível carregar os registros de presença para esta aula.');
+                showGlobalMessageModal('Erro', 'Não foi possível carregar os registros de presença para esta aula.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'P': return 'present';
+                case 'F': return 'absent';
+                case 'Fj': return 'justified';
+                default: return '';
             }
         }
 
@@ -202,7 +217,7 @@
                 row.innerHTML = `
                     <td>${student.id}</td>
                     <td>${student.nome}</td>
-                    <td>
+                    <td class="attendance-cell ${getStatusClass(currentStatus)}">
                         <select class="attendance-status-select" data-student-id="${student.id}" data-class-id="${selectedClassId}" data-record-id="${recordId}">
                             <option value="P" ${currentStatus === 'P' ? 'selected' : ''}>Presente</option>
                             <option value="F" ${currentStatus === 'F' ? 'selected' : ''}>Falta</option>
@@ -211,13 +226,21 @@
                     </td>
                 `;
                 attendanceTableBody.appendChild(row);
+
+                // ADIÇÃO: Listener para mudar a cor da célula ao alterar o select
+                const selectElement = row.querySelector('.attendance-status-select');
+                selectElement.addEventListener('change', (e) => {
+                    const cell = e.target.closest('.attendance-cell');
+                    cell.classList.remove('present', 'absent', 'justified');
+                    cell.classList.add(getStatusClass(e.target.value));
+                });
             });
         }
 
         async function saveAttendance() {
             const selectedClassId = document.getElementById('classSelect').value;
             if (!selectedClassId) {
-                showMessageModal('Atenção', 'Por favor, selecione uma aula antes de salvar a presença.');
+                showGlobalMessageModal('Atenção', 'Por favor, selecione uma aula antes de salvar a presença.');
                 return;
             }
 
@@ -239,6 +262,7 @@
             let successCount = 0;
             let errorCount = 0;
 
+            showLoading();
             for (const update of attendanceUpdates) {
                 try {
                     // Sempre tenta POST para /attendance/add. O backend agora fará o upsert.
@@ -271,11 +295,12 @@
                     console.error(`Erro de rede/servidor ao salvar presença para aluno ${update.student_id}:`, error);
                 }
             }
+            hideLoading();
 
             if (errorCount === 0) {
-                showMessageModal('Sucesso', `Presença salva para ${successCount} alunos.`);
+                showGlobalMessageModal('Sucesso', `Presença salva para ${successCount} alunos.`);
             } else {
-                showMessageModal('Atenção', `Presença salva para ${successCount} alunos, com ${errorCount} erros. Verifique o console para detalhes.`);
+                showGlobalMessageModal('Atenção', `Presença salva para ${successCount} alunos, com ${errorCount} erros. Verifique o console para detalhes.`);
             }
             // Recarrega a presença para refletir quaisquer IDs de registro novos
             // A recarga completa pode não ser necessária se os IDs forem atualizados no loop.

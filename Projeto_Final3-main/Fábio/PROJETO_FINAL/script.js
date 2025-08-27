@@ -10,12 +10,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loginForm = document.getElementById("loginForm");
 
+  // ADIÇÃO: Elementos e funções globais para feedback visual
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.className = 'loading-overlay hidden';
+  loadingOverlay.innerHTML = '<div class="loading-spinner"></div>';
+  document.body.appendChild(loadingOverlay);
+
+  window.showLoading = function() {
+      loadingOverlay.classList.remove('hidden');
+  }
+
+  window.hideLoading = function() {
+      loadingOverlay.classList.add('hidden');
+  }
+
+  const messageModalHtml = `
+      <div id="globalMessageModal" class="message-modal hidden">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h3 id="globalMessageModalTitle"></h3>
+                  <button class="close-btn" onclick="closeGlobalMessageModal()">×</button>
+              </div>
+              <div class="modal-body">
+                  <p id="globalMessageModalText"></p>
+              </div>
+              <div class="modal-footer">
+                  <button class="action-btn primary" onclick="closeGlobalMessageModal()">OK</button>
+              </div>
+          </div>
+      </div>`;
+  document.body.insertAdjacentHTML('beforeend', messageModalHtml);
+
+  window.showGlobalMessageModal = function(title, message) {
+      document.getElementById('globalMessageModalTitle').textContent = title;
+      document.getElementById('globalMessageModalText').textContent = message;
+      document.getElementById('globalMessageModal').classList.remove('hidden');
+  }
+
+  window.closeGlobalMessageModal = function() {
+      document.getElementById('globalMessageModal').classList.add('hidden');
+  }
+
+
   if (loginForm) {
     loginForm.addEventListener("submit", async (e) => { // MODIFICAÇÃO: Adicionado 'async'
       e.preventDefault();
 
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
+
+      showLoading(); // ADIÇÃO: Mostra o spinner
 
       try {
         // ADIÇÃO: Requisição para o endpoint de login do backend
@@ -53,11 +97,13 @@ document.addEventListener("DOMContentLoaded", () => {
             window.location.href = "dashboard.html";
           }
         } else {
-          alert('Erro no login: ' + (data.message || 'Erro desconhecido.')); // MODIFICAÇÃO: Mensagem de erro mais robusta
+          showGlobalMessageModal('Erro no Login', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO: Mensagem de erro mais robusta
         }
       } catch (error) {
         console.error('Erro de rede ou servidor ao tentar logar:', error);
-        alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+        showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.');
+      } finally {
+        hideLoading(); // ADIÇÃO: Esconde o spinner
       }
     });
   }
@@ -146,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Funções para buscar e exibir os alunos do backend (info_alunos) ---
   window.fetchAlunosFromBackend = async function() { // MODIFICAÇÃO: Tornada global e async
+    showLoading(); // ADIÇÃO
       try {
           const response = await fetch('http://127.0.0.1:5000/alunos');
           if (!response.ok) {
@@ -165,6 +212,9 @@ document.addEventListener("DOMContentLoaded", () => {
           if (tbody) {
               tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: red;">Erro ao carregar dados dos alunos.</td></tr>`;
           }
+          showGlobalMessageModal('Erro', 'Não foi possível carregar os dados dos alunos.'); // ADIÇÃO
+      } finally {
+        hideLoading(); // ADIÇÃO
       }
   }
 
@@ -212,6 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ADIÇÃO: Funções para buscar e exibir o status geral dos alunos (student_overall_status)
   // NOTA: Esta função foi atualizada para buscar da nova tabela 'status_alunos'
   window.fetchStudentOverallStatusFromBackend = async function() {
+    showLoading(); // ADIÇÃO
       try {
           const response = await fetch('http://127.0.0.1:5000/status_alunos'); // MODIFICAÇÃO: Nova rota
           if (!response.ok) {
@@ -229,6 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
           if (tbody) {
               tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Erro ao carregar status dos alunos.</td></tr>`;
           }
+          showGlobalMessageModal('Erro', 'Não foi possível carregar o status dos alunos.'); // ADIÇÃO
+      } finally {
+        hideLoading(); // ADIÇÃO
       }
   }
 
@@ -259,6 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ADIÇÃO: Funções para buscar e exibir os dados de login dos usuários (users)
   window.fetchLoginAlunosFromBackend = async function() {
+    showLoading(); // ADIÇÃO
       try {
           const response = await fetch('http://127.0.0.1:5000/users');
           if (!response.ok) {
@@ -276,6 +331,9 @@ document.addEventListener("DOMContentLoaded", () => {
           if (tbody) {
               tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Erro ao carregar dados de login.</td></tr>`;
           }
+          showGlobalMessageModal('Erro', 'Não foi possível carregar os dados de login.'); // ADIÇÃO
+      } finally {
+        hideLoading(); // ADIÇÃO
       }
   }
 
@@ -307,6 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ADIÇÃO: Funções para buscar e exibir os dados das atividades dos alunos (atividades_alunos)
   window.fetchAtividadesAlunosFromBackend = async function() {
+    showLoading(); // ADIÇÃO
     try {
         const response = await fetch('http://127.0.0.1:5000/atividades_alunos'); // Nova rota para atividades
         if (!response.ok) {
@@ -324,6 +383,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tbody) {
             tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: red;">Erro ao carregar atividades dos alunos.</td></tr>`;
         }
+        showGlobalMessageModal('Erro', 'Não foi possível carregar as atividades dos alunos.'); // ADIÇÃO
+    } finally {
+        hideLoading(); // ADIÇÃO
     }
   }
 
@@ -495,8 +557,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // MODIFICAÇÃO: sendAlunoToBackend agora inclui validação e exibe credenciais
   async function sendAlunoToBackend(alunoData) {
+    showLoading(); // ADIÇÃO
       // ADIÇÃO: Chamar a função de validação antes de enviar
       if (!validateAlunoForm(alunoData, false)) { // 'false' porque é uma nova adição
+        hideLoading(); // ADIÇÃO
           return; // Impede o envio se a validação falhar
       }
 
@@ -516,16 +580,18 @@ document.addEventListener("DOMContentLoaded", () => {
               if (data.generated_username && data.generated_password) {
                   successMessage += `\n\nCredenciais de Login:\nUsuário: ${data.generated_username}\nSenha: ${data.generated_password}`;
               }
-              alert(successMessage);
+              showGlobalMessageModal('Sucesso', successMessage); // MODIFICAÇÃO
               closeAddAlunoModal();
               fetchAlunosFromBackend(); // Recarrega a tabela
           } else {
               // Adiciona detalhes da mensagem de erro do backend (ex: erro de duplicidade)
-              alert('Erro ao adicionar aluno: ' + (data.message || 'Erro desconhecido.'));
+              showGlobalMessageModal('Erro ao adicionar aluno', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO
           }
       } catch (error) {
           console.error('Erro de rede ou servidor ao enviar aluno:', error);
-          alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+          showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.'); // MODIFICAÇÃO
+      } finally {
+        hideLoading(); // ADIÇÃO
       }
   }
 
@@ -533,6 +599,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- LÓGICA PARA DELETAR ALUNO ---
   window.deleteAluno = async function(alunoId) { // MODIFICAÇÃO: Adicionado 'async'
       if (confirm(`Tem certeza que deseja excluir o aluno com ID ${alunoId}?`)) {
+        showLoading(); // ADIÇÃO
           try {
               const response = await fetch(`http://127.0.0.1:5000/alunos/delete/${alunoId}`, {
                   method: 'DELETE',
@@ -540,14 +607,16 @@ document.addEventListener("DOMContentLoaded", () => {
               const data = await response.json();
               console.log('Resposta do backend (delete):', data);
               if (data.success) {
-                  alert('Aluno excluído com sucesso!');
+                  showGlobalMessageModal('Sucesso', 'Aluno excluído com sucesso!'); // MODIFICAÇÃO
                   fetchAlunosFromBackend(); // Recarrega a tabela
               } else {
-                  alert('Erro ao excluir aluno: ' + (data.message || 'Erro desconhecido.'));
+                  showGlobalMessageModal('Erro ao excluir aluno', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO
               }
           } catch (error) {
               console.error('Erro de rede ou servidor ao excluir aluno:', error);
-              alert('Erro de conexão ou servidor ao tentar excluir aluno.');
+              showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor ao tentar excluir aluno.'); // MODIFICAÇÃO
+          } finally {
+            hideLoading(); // ADIÇÃO
           }
       }
   };
@@ -557,6 +626,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Função para abrir o modal de edição e preencher com os dados do aluno
   window.editAluno = async function(alunoId) { // MODIFICAÇÃO: Adicionado 'async'
+    showLoading(); // ADIÇÃO
       try {
           const response = await fetch(`http://127.0.0.1:5000/alunos/${alunoId}`);
           if (!response.ok) {
@@ -579,11 +649,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
               document.getElementById('editAlunoModal').classList.remove('hidden');
           } else {
-              alert('Aluno não encontrado para edição.');
+              showGlobalMessageModal('Erro', 'Aluno não encontrado para edição.'); // MODIFICAÇÃO
           }
       } catch (error) {
           console.error('Erro ao buscar dados do aluno para edição:', error);
-          alert('Erro ao carregar dados do aluno para edição.');
+          showGlobalMessageModal('Erro', 'Erro ao carregar dados do aluno para edição.'); // MODIFICAÇÃO
+      } finally {
+        hideLoading(); // ADIÇÃO
       }
   };
 
@@ -628,6 +700,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // FUNÇÃO sendEditedAlunoToBackend
   async function sendEditedAlunoToBackend(alunoId, alunoData) { // MODIFICAÇÃO: Adicionado 'async'
+    showLoading(); // ADIÇÃO
       try {
           const response = await fetch(`http://127.0.0.1:5000/alunos/edit/${alunoId}`, { // A URL do seu endpoint Flask (método PUT)
               method: 'PUT', // Método HTTP PUT para atualização
@@ -639,16 +712,18 @@ document.addEventListener("DOMContentLoaded", () => {
           const data = await response.json(); // Espera uma resposta JSON do backend
           console.log('Resposta do backend (edição):', data);
           if (data.success) {
-                  alert('Aluno atualizado com sucesso!');
+                  showGlobalMessageModal('Sucesso', 'Aluno atualizado com sucesso!'); // MODIFICAÇÃO
                   closeEditAlunoModal(); // Fecha o modal
                   fetchAlunosFromBackend(); // Recarrega a tabela para mostrar o aluno atualizado
               } else {
                   // Adiciona detalhes da mensagem de erro do backend (ex: erro de duplicidade)
-                  alert('Erro ao atualizar aluno: ' + (data.message || 'Erro desconhecido.'));
+                  showGlobalMessageModal('Erro ao atualizar aluno', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO
               }
           } catch (error) {
               console.error('Erro de rede ou servidor ao atualizar aluno:', error);
-              alert('Erro de conexão ou servidor. Tente novamente mais tarde.');
+              showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.'); // MODIFICAÇÃO
+          } finally {
+            hideLoading(); // ADIÇÃO
           }
       }
 
@@ -667,6 +742,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function logout() { // MODIFICAÇÃO: Adicionado 'async'
         const userId = localStorage.getItem("userId"); // ADIÇÃO: Pega o ID do usuário logado
         if (userId) {
+            showLoading(); // ADIÇÃO: Adiciona o spinner ao sair
             try {
                 await fetch(`http://127.0.0.1:5000/logout/${userId}`, { // ADIÇÃO: Chama o endpoint de logout
                     method: 'POST',
@@ -674,6 +750,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.log('Status online atualizado para offline.');
             } catch (error) {
                 console.error('Erro ao atualizar status de logout:', error);
+            } finally {
+                hideLoading(); // ADIÇÃO
             }
         }
         localStorage.removeItem("isLoggedIn");
@@ -751,8 +829,9 @@ window.changeTable = function() {
         window.fetchStudentOverallStatusFromBackend();
     } else if (selectedTable === 'login_alunos') {
         window.fetchLoginAlunosFromBackend();
+    } else if (selectedTable === 'atividades_alunos') {
+        window.fetchAtividadesAlunosFromBackend();
     }
-    // 'atividades_alunos' continuará estática por enquanto, se não for adicionada lógica de backend para ela.
 };
 
 window.searchTable = function() {
