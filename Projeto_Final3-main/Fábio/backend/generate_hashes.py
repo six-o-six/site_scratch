@@ -3,9 +3,6 @@ from werkzeug.security import generate_password_hash
 passwords_to_hash = {
     "python2024": "programacao",
     "scratch123": "professor",
-    "aula2024": "aluno1",
-    "scratch456": "aluno2",
-    "admin123": "admin"
 }
 
 hashed_passwords = {}
