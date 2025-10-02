@@ -53,8 +53,8 @@
         <main class="content">
             <h1 class="page-title">Minhas Atividades</h1>
             
-            <div class="activities-table-container">
-                <table class="activities-table">
+            <div class="attendance-table-container">
+                <table class="attendance-table">
                     <thead>
                         <tr id="activitiesTableHeader">
                             <th class="name-header">Nome do Aluno</th>
@@ -89,13 +89,13 @@
 
             try {
                 // Buscando a configuração do sistema e os dados do aluno e atividades
-                const [studentResponse, activitiesResponse, configResponse] = await Promise.all([
+                const [studentsResponse, activitiesResponse, configResponse] = await Promise.all([
                     window.fetchStudents(),
                     window.fetchStudentActivities(),
                     window.fetchSystemConfig()
                 ]);
 
-                studentData = studentResponse.find(student => student.id == studentId);
+                studentData = studentsResponse.find(student => student.id == studentId);
                 studentActivities = activitiesResponse.find(act => act.id == studentId);
                 config = configResponse;
 
