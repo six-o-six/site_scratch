@@ -1,3 +1,119 @@
+const API_BASE_URL = 'http://127.0.0.1:5000';
+const config = {
+    numberOfActivities: 10
+};
+
+// Funções de serviço para interagir com a API
+async function fetchFromApi(endpoint, method = 'GET', body = null) {
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    const config = {
+        method,
+        headers,
+    };
+    if (body) {
+        config.body = JSON.stringify(body);
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        if (!response.ok) {
+            throw new Error(`Erro HTTP! Status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Erro na requisição para ${endpoint}:`, error);
+        showGlobalMessageModal('Erro de Rede', `Não foi possível conectar ao servidor. Detalhes: ${error.message}`);
+        throw error;
+    }
+}
+
+async function fetchClasses() {
+    return fetchFromApi('/classes');
+}
+
+async function fetchStudents() {
+    return fetchFromApi('/alunos');
+}
+
+async function fetchAttendanceRecords() {
+    return fetchFromApi('/attendance');
+}
+
+async function saveAttendanceRecords(recordData) {
+    return fetchFromApi('/attendance/add', 'POST', recordData);
+}
+
+async function fetchStudentActivities() {
+    return fetchFromApi('/atividades_alunos');
+}
+
+async function updateActivityStatus(alunoId, data) {
+    return fetchFromApi(`/atividades_alunos/update_aula/${alunoId}`, 'PUT', data);
+}
+
+async function fetchSystemConfig() {
+    return fetchFromApi('/config');
+}
+
+// Funções globais de UI
+function showLoading() {
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+    }
+}
+
+function hideLoading() {
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.add('hidden');
+    }
+}
+
+function showGlobalMessageModal(title, message) {
+    document.getElementById('globalMessageModalTitle').textContent = title;
+    document.getElementById('globalMessageModalText').textContent = message;
+    document.getElementById('globalMessageModal').classList.remove('hidden');
+}
+
+function closeGlobalMessageModal() {
+    document.getElementById('globalMessageModal').classList.add('hidden');
+}
+
+function showConfirmModal(title, message, onConfirmCallback) {
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmModalTitle = document.getElementById('confirmModalTitle');
+    const confirmModalText = document.getElementById('confirmModalText');
+    const doConfirmBtn = document.getElementById('doConfirmModalBtn');
+    const cancelConfirmBtn = document.getElementById('cancelConfirmModalBtn');
+    
+    confirmModalTitle.textContent = title;
+    confirmModalText.textContent = message;
+    
+    // Remove listeners antigos para evitar múltiplas chamadas
+    doConfirmBtn.onclick = null;
+    cancelConfirmBtn.onclick = null;
+
+    // Define os novos listeners
+    doConfirmBtn.onclick = () => {
+      onConfirmCallback();
+      closeConfirmModal();
+    };
+
+    cancelConfirmBtn.onclick = () => {
+      closeConfirmModal();
+    };
+    
+    confirmModal.classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+}
+
+
 // REMOÇÃO: A base de dados de usuários e as funções addUser/loadUsers hardcoded não são mais necessárias, pois o login e gerenciamento de usuários agora são feitos pelo backend.
 // const users = { ... }
 // function addUser(username, password, role = "student", name = "") { { ... } }
@@ -16,13 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay.innerHTML = '<div class="loading-spinner"></div>';
   document.body.appendChild(loadingOverlay);
 
-  window.showLoading = function() {
-      loadingOverlay.classList.remove('hidden');
-  }
-
-  window.hideLoading = function() {
-      loadingOverlay.classList.add('hidden');
-  }
+  // Estas funções window.showLoading e window.hideLoading já foram definidas acima.
 
   const messageModalHtml = `
       <div id="globalMessageModal" class="message-modal hidden">
@@ -61,46 +171,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.body.insertAdjacentHTML('beforeend', confirmModalHtml);
 
 
-  window.showGlobalMessageModal = function(title, message) {
-      document.getElementById('globalMessageModalTitle').textContent = title;
-      document.getElementById('globalMessageModalText').textContent = message;
-      document.getElementById('globalMessageModal').classList.remove('hidden');
-  }
-
-  window.closeGlobalMessageModal = function() {
-      document.getElementById('globalMessageModal').classList.add('hidden');
-  }
-
-  window.showConfirmModal = function(title, message, onConfirmCallback) {
-    const confirmModal = document.getElementById('confirmModal');
-    const confirmModalTitle = document.getElementById('confirmModalTitle');
-    const confirmModalText = document.getElementById('confirmModalText');
-    const doConfirmBtn = document.getElementById('doConfirmModalBtn');
-    const cancelConfirmBtn = document.getElementById('cancelConfirmModalBtn');
-    
-    confirmModalTitle.textContent = title;
-    confirmModalText.textContent = message;
-    
-    // Remove listeners antigos para evitar múltiplas chamadas
-    doConfirmBtn.onclick = null;
-    cancelConfirmBtn.onclick = null;
-
-    // Define os novos listeners
-    doConfirmBtn.onclick = () => {
-      onConfirmCallback();
-      closeConfirmModal();
-    };
-
-    cancelConfirmBtn.onclick = () => {
-      closeConfirmModal();
-    };
-    
-    confirmModal.classList.remove('hidden');
-  }
-
-  window.closeConfirmModal = function() {
-    document.getElementById('confirmModal').classList.add('hidden');
-  }
+  // Estas funções window.showGlobalMessageModal e window.closeGlobalMessageModal já foram definidas acima.
+  // Estas funções window.showConfirmModal e window.closeConfirmModal já foram definidas acima.
 
 
   if (loginForm) {
@@ -763,102 +835,102 @@ document.addEventListener("DOMContentLoaded", () => {
           const data = await response.json(); // Espera uma resposta JSON do backend
           console.log('Resposta do backend (edição):', data);
           if (data.success) {
-                  showGlobalMessageModal('Sucesso', 'Aluno atualizado com sucesso!'); // MODIFICAÇÃO
-                  closeEditAlunoModal(); // Fecha o modal
-                  fetchAlunosFromBackend(); // Recarrega a tabela para mostrar o aluno atualizado
-              } else {
-                  // Adiciona detalhes da mensagem de erro do backend (ex: erro de duplicidade)
-                  showGlobalMessageModal('Erro ao atualizar aluno', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO
-              }
-          } catch (error) {
-              console.error('Erro de rede ou servidor ao atualizar aluno:', error);
-              showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.'); // MODIFICAÇÃO
-          } finally {
+                      showGlobalMessageModal('Sucesso', 'Aluno atualizado com sucesso!'); // MODIFICAÇÃO
+                      closeEditAlunoModal(); // Fecha o modal
+                      fetchAlunosFromBackend(); // Recarrega a tabela para mostrar o aluno atualizado
+                  } else {
+                      // Adiciona detalhes da mensagem de erro do backend (ex: erro de duplicidade)
+                      showGlobalMessageModal('Erro ao atualizar aluno', data.message || 'Erro desconhecido.'); // MODIFICAÇÃO
+                  }
+              } catch (error) {
+                  console.error('Erro de rede ou servidor ao atualizar aluno:', error);
+                  showGlobalMessageModal('Erro de Conexão', 'Erro de conexão ou servidor. Tente novamente mais tarde.'); // MODIFICAÇÃO
+              } finally {
             hideLoading(); // ADIÇÃO
           }
       }
 
 
-    // --- Outras Funções ---
-    // Funções de navegação e logout
-    function goBack() {
-        window.history.back();
-    }
+      // --- Outras Funções ---
+      // Funções de navegação e logout
+      function goBack() {
+          window.history.back();
+      }
 
-    // REMOÇÃO: goToPage não é usada no código atual, pode ser removida
-    // function goToPage(page) {
-    //     window.location.href = page;
-    // }
+      // REMOÇÃO: goToPage não é usada no código atual, pode ser removida
+      // function goToPage(page) {
+      //     window.location.href = page;
+      // }
 
-    async function logout() { // MODIFICAÇÃO: Adicionado 'async'
-        const userId = localStorage.getItem("userId"); // ADIÇÃO: Pega o ID do usuário logado
-        if (userId) {
-            showLoading(); // ADIÇÃO: Adiciona o spinner ao sair
-            try {
-                await fetch(`http://127.0.0.1:5000/logout/${userId}`, { // ADIÇÃO: Chama o endpoint de logout
-                    method: 'POST',
-                });
-                console.log('Status online atualizado para offline.');
-            } catch (error) {
-                console.error('Erro ao atualizar status de logout:', error);
-            } finally {
+      async function logout() { // MODIFICAÇÃO: Adicionado 'async'
+          const userId = localStorage.getItem("userId"); // ADIÇÃO: Pega o ID do usuário logado
+          if (userId) {
+              showLoading(); // ADIÇÃO: Adiciona o spinner ao sair
+              try {
+                  await fetch(`http://127.0.0.1:5000/logout/${userId}`, { // ADIÇÃO: Chama o endpoint de logout
+                      method: 'POST',
+                  });
+                  console.log('Status online atualizado para offline.');
+              } catch (error) {
+                  console.error('Erro ao atualizar status de logout:', error);
+              } finally {
                 hideLoading(); // ADIÇÃO
-            }
-        }
-        localStorage.removeItem("isLoggedIn");
-        localStorage.removeItem("userId"); // ADIÇÃO
-        localStorage.removeItem("username");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userStudentId"); // ADIÇÃO
-        window.location.href = "index.html";
-    }
+              }
+          }
+          localStorage.removeItem("isLoggedIn");
+          localStorage.removeItem("userId"); // ADIÇÃO
+          localStorage.removeItem("username");
+          localStorage.removeItem("userRole");
+          localStorage.removeItem("userName");
+          localStorage.removeItem("userStudentId"); // ADIÇÃO
+          window.location.href = "index.html";
+      }
 
-    const userAvatar = document.querySelector(".user-avatar")
-    if (userAvatar) {
-      console.log('Elemento .user-avatar encontrado:', userAvatar);
-      userAvatar.addEventListener("click", () => {
-        console.log('Clique no .user-avatar detectado.');
-        showConfirmModal('Confirmar Logout', 'Você tem certeza que deseja fazer logout?', () => {
-            logout();
-        });
-      })
-      userAvatar.style.cursor = "pointer"
-      userAvatar.title = "Clique para fazer logout"
-    } else {
-      console.warn('Elemento .user-avatar NÃO ENCONTRADO.');
-    }
+      const userAvatar = document.querySelector(".user-avatar")
+      if (userAvatar) {
+          console.log('Elemento .user-avatar encontrado:', userAvatar);
+          userAvatar.addEventListener("click", () => {
+              console.log('Clique no .user-avatar detectado.');
+              showConfirmModal('Confirmar Logout', 'Você tem certeza que deseja fazer logout?', () => {
+                  logout();
+              });
+          })
+          userAvatar.style.cursor = "pointer"
+          userAvatar.title = "Clique para fazer logout"
+      } else {
+          console.warn('Elemento .user-avatar NÃO ENCONTRADO.');
+      }
 
-    function abrirWhatsApp() {
-        const whatsappLink = "https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c";
-        window.open(whatsappLink, '_blank');
-    }
+      function abrirWhatsApp() {
+          const whatsappLink = "https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c";
+          window.open(whatsappLink, '_blank');
+      }
 
-    // Fechar modals ao clicar fora ou pressionar ESC
-    // ADIÇÃO: Garantir que estas funções são acessíveis globalmente se forem chamadas via onclick
-    window.closeAddAlunoModal = window.closeAddAlunoModal || function() { // Garante que a função está definida
-        document.getElementById('addAlunoModal').classList.add('hidden');
-        document.getElementById('addAlunoForm').reset();
-    };
+      // Fechar modals ao clicar fora ou pressionar ESC
+      // ADIÇÃO: Garantir que estas funções são acessíveis globalmente se forem chamadas via onclick
+      window.closeAddAlunoModal = window.closeAddAlunoModal || function() { // Garante que a função está definida
+          document.getElementById('addAlunoModal').classList.add('hidden');
+          document.getElementById('addAlunoForm').reset();
+      };
 
-    window.closeEditAlunoModal = window.closeEditAlunoModal || function() { // Garante que a função está definida
-        document.getElementById('editAlunoModal').classList.add('hidden');
-        document.getElementById('editAlunoForm').reset();
-    };
+      window.closeEditAlunoModal = window.closeEditAlunoModal || function() { // Garante que a função está definida
+          document.getElementById('editAlunoModal').classList.add('hidden');
+          document.getElementById('editAlunoForm').reset();
+      };
 
-    document.addEventListener('keydown', (e) => {
-        const addAlunoModal = document.getElementById('addAlunoModal');
-        const editAlunoModal = document.getElementById('editAlunoModal');
-        
-        if (e.key === 'Escape') {
-            if (addAlunoModal && !addAlunoModal.classList.contains('hidden')) {
-                closeAddAlunoModal();
-            }
-            if (editAlunoModal && !editAlunoModal.classList.contains('hidden')) {
-                closeEditAlunoModal();
-            }
-        }
-    });
+      document.addEventListener('keydown', (e) => {
+          const addAlunoModal = document.getElementById('addAlunoModal');
+          const editAlunoModal = document.getElementById('editAlunoModal');
+          
+          if (e.key === 'Escape') {
+              if (addAlunoModal && !addAlunoModal.classList.contains('hidden')) {
+                  closeAddAlunoModal();
+              }
+              if (editAlunoModal && !editAlunoModal.classList.contains('hidden')) {
+                  closeEditAlunoModal();
+              }
+          }
+      });
 }); // Fim do DOMContentLoaded
 
 
