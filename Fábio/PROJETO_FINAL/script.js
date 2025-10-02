@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (isLoggedIn === 'true') {
       // Páginas que são estritamente do professor (não devem ser acessadas por alunos)
-      const strictTeacherPages = ['teacher-dashboard.html', 'admin.html', 'database.html', 'teacher-diary.html', 'teacher-materials.html'];
+      const strictTeacherPages = ['teacher-dashboard.html', 'admin.html', 'database.html', 'teacher-diary.html', 'teacher-activities.html', 'teacher-materials.html'];
       // Páginas que são estritamente do aluno (não devem ser acessadas por professores)
       const strictStudentPages = ['dashboard.html'];
 
@@ -272,6 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const navAdmin = document.getElementById('navAdmin'); // ID para Administração de Usuários
   const navBancoDados = document.getElementById('navBancoDados');
   const navDiarioClasseProf = document.getElementById('navDiarioClasseProf');
+  const navActivitiesProf = document.getElementById('navActivitiesProf');
   const navMateriaisProf = document.getElementById('navMateriaisProf');
 
   const navDiarioClasseAluno = document.getElementById('navDiarioClasseAluno'); // ID para Diário de Classe do Aluno
@@ -282,6 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (navAdmin) navAdmin.style.display = 'list-item'; // Use 'list-item' para garantir que o estilo de lista seja aplicado
       if (navBancoDados) navBancoDados.style.display = 'list-item';
       if (navDiarioClasseProf) navDiarioClasseProf.style.display = 'list-item';
+      if (navActivitiesProf) navActivitiesProf.style.display = 'list-item';
       if (navMateriaisProf) navMateriaisProf.style.display = 'list-item';
 
       // Ocultar links de Aluno
@@ -299,6 +301,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (navAdmin) navAdmin.style.display = 'none';
       if (navBancoDados) navBancoDados.style.display = 'none';
       if (navDiarioClasseProf) navDiarioClasseProf.style.display = 'none';
+      if (navActivitiesProf) navActivitiesProf.style.display = 'none';
       if (navMateriaisProf) navMateriaisProf.style.display = 'none';
 
       // Mostrar links de Aluno
