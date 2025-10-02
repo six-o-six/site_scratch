@@ -15,7 +15,7 @@ async function fetchFromApi(endpoint, method = 'GET', body = null) {
     if (body) {
         config.body = JSON.stringify(body);
     }
-    
+
     try {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
         if (!response.ok) {
@@ -88,10 +88,10 @@ function showConfirmModal(title, message, onConfirmCallback) {
     const confirmModalText = document.getElementById('confirmModalText');
     const doConfirmBtn = document.getElementById('doConfirmModalBtn');
     const cancelConfirmBtn = document.getElementById('cancelConfirmModalBtn');
-    
+
     confirmModalTitle.textContent = title;
     confirmModalText.textContent = message;
-    
+
     // Remove listeners antigos para evitar múltiplas chamadas
     doConfirmBtn.onclick = null;
     cancelConfirmBtn.onclick = null;
@@ -105,7 +105,7 @@ function showConfirmModal(title, message, onConfirmCallback) {
     cancelConfirmBtn.onclick = () => {
       closeConfirmModal();
     };
-    
+
     confirmModal.classList.remove('hidden');
 }
 
@@ -247,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Páginas que são estritamente do professor (não devem ser acessadas por alunos)
       const strictTeacherPages = ['teacher-dashboard.html', 'admin.html', 'database.html', 'teacher-diary.html', 'teacher-activities.html', 'teacher-materials.html'];
       // Páginas que são estritamente do aluno (não devem ser acessadas por professores)
-      const strictStudentPages = ['dashboard.html'];
+      const strictStudentPages = ['dashboard.html', 'activities.html'];
 
       if (userRole === 'teacher') {
           // Se um professor está em uma página estritamente de aluno, redireciona para a dashboard do professor
@@ -276,6 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const navMateriaisProf = document.getElementById('navMateriaisProf');
 
   const navDiarioClasseAluno = document.getElementById('navDiarioClasseAluno'); // ID para Diário de Classe do Aluno
+  const navActivitiesAluno = document.getElementById('navActivitiesAluno'); // ADIÇÃO
   const navMateriaisAluno = document.getElementById('navMateriaisAluno'); // ID para Materiais do Aluno
 
   if (userRole === 'teacher') {
@@ -288,8 +289,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Ocultar links de Aluno
       if (navDiarioClasseAluno) navDiarioClasseAluno.style.display = 'none';
+      if (navActivitiesAluno) navActivitiesAluno.style.display = 'none'; // ADIÇÃO
       if (navMateriaisAluno) navMateriaisAluno.style.display = 'none';
-      
+
       // Remova qualquer ID 'adminLink' antigo ou duplicado
       const oldAdminLink = document.getElementById('adminLink');
       if (oldAdminLink) {
@@ -306,6 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Mostrar links de Aluno
       if (navDiarioClasseAluno) navDiarioClasseAluno.style.display = 'list-item';
+      if (navActivitiesAluno) navActivitiesAluno.style.display = 'list-item'; // ADIÇÃO
       if (navMateriaisAluno) navMateriaisAluno.style.display = 'list-item';
 
       // Remova qualquer ID 'adminLink' antigo ou duplicado
@@ -325,7 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
               throw new Error(`Erro HTTP! Status: ${response.status}`);
           }
           let alunos = await response.json(); // Use 'let' para que possa ser reatribuído
-          
+
           // ADIÇÃO DE LOG E ORDENAÇÃO NO FRONTEND
           console.log('Alunos recebidos do backend (antes da ordenação no frontend):', alunos);
           alunos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
@@ -347,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Função para popular a tabela de info_alunos em database.html ---
   function displayAlunosInInfoTable(alunos) {
       const tbody = document.querySelector('#table_info_alunos tbody');
-      
+
       if (!tbody) {
           console.warn('Elemento tbody da tabela de info_alunos não encontrado. Verifique database.html.');
           return;
@@ -644,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
           showGlobalMessageModal('Atenção', 'Campo "Responsável" não deve conter números ou símbolos.'); // MODIFICAÇÃO
           return false;
       }
-      
+
       return true; // Se todas as validações passarem
   }
 
@@ -660,7 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
           showGlobalMessageModal('Atenção', `Funcionalidade de adicionar ainda não implementada para a tabela: ${selectedTable}`); // MODIFICAÇÃO
       }
   }
-  
+
   window.closeAddAlunoModal = function() {
       document.getElementById('addAlunoModal').classList.add('hidden');
       document.getElementById('addAlunoForm').reset();
@@ -924,7 +927,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.addEventListener('keydown', (e) => {
           const addAlunoModal = document.getElementById('addAlunoModal');
           const editAlunoModal = document.getElementById('editAlunoModal');
-          
+
           if (e.key === 'Escape') {
               if (addAlunoModal && !addAlunoModal.classList.contains('hidden')) {
                   closeAddAlunoModal();
