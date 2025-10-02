@@ -340,9 +340,11 @@ def get_users():
     if connection:
         try:
             cursor = connection.cursor(dictionary=True)
-            # Aprimoramento: Formatando a data diretamente na consulta SQL
-            cursor.execute("SELECT id, username, full_name, role, student_id, DATE_FORMAT(last_login, '%Y-%m-%dT%H:%i:%s') as last_login, total_logins, online_status FROM users")
+            cursor.execute("SELECT id, username, full_name, role, student_id, last_login, total_logins, online_status FROM users")
             users = cursor.fetchall()
+            for user in users:
+                if user.get('last_login'):
+                    user['last_login'] = user['last_login'].isoformat() # Formatar data para JSON
             cursor.close()
         except Error as e:
             print(f"Erro ao buscar usuários: {e}")
@@ -357,12 +359,13 @@ def get_user_by_id(user_id):
     if connection:
         try:
             cursor = connection.cursor(dictionary=True)
-            # Aprimoramento: Formatando a data diretamente na consulta SQL
-            query = "SELECT id, username, full_name, role, student_id, DATE_FORMAT(last_login, '%Y-%m-%dT%H:%i:%s') as last_login, total_logins, online_status FROM users WHERE id = %s"
+            query = "SELECT id, username, full_name, role, student_id, last_login, total_logins, online_status FROM users WHERE id = %s"
             cursor.execute(query, (user_id,))
             user = cursor.fetchone()
             cursor.close()
             if user:
+                if user.get('last_login'):
+                    user['last_login'] = user['last_login'].isoformat()
                 return jsonify(user), 200
             else:
                 return jsonify({'message': 'Usuário não encontrado!'}), 404
@@ -890,10 +893,6 @@ def edit_attendance_record(record_id):
     if connection:
         try:
             cursor = connection.cursor()
-            query = "UPDATE attendance_records SET attendance_status = %s WHERE id = %s"
-            values = (attendance_status, record_id)
-            cursor.execute(query, values)
-            connection.commit()
             
             # ADIÇÃO: Recalcular e atualizar faltas em status_alunos após edição
             # Primeiro, obtenha o student_id do registro de presença
@@ -1250,6 +1249,14 @@ def delete_material(material_id):
             connection.close()
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
+# ADIÇÃO: Nova rota para configuração do sistema
+@app.route('/config', methods=['GET'])
+def get_system_config():
+    """Retorna as configurações dinâmicas do sistema."""
+    config = {
+        'numberOfActivities': 10
+    }
+    return jsonify(config)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
