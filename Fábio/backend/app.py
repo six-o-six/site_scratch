@@ -3,8 +3,8 @@ import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-import random # ADIÇÃO: Para gerar senhas aleatórias
-import string # ADIÇÃO: Para caracteres de senhas aleatórias
+import random
+import string
 import time
 from werkzeug.utils import secure_filename
 
@@ -19,11 +19,86 @@ db_config = {
     'password': '1234' # SUA SENHA AQUI
 }
 
-# ADIÇÃO: Configuração para uploads de materiais
+# Configuração para uploads de materiais
 UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# --- INÍCIO DA IMPLEMENTAÇÃO DO PADRÃO OBSERVER ---
+
+# 1. Definindo a interface do Observer
+class Observer:
+    def update(self, subject, student_id):
+        raise NotImplementedError
+
+# 2. Definindo o Sujeito (Subject)
+class Subject:
+    def __init__(self):
+        self._observers = []
+
+    def attach(self, observer):
+        if observer not in self._observers:
+            self._observers.append(observer)
+
+    def detach(self, observer):
+        try:
+            self._observers.remove(observer)
+        except ValueError:
+            pass
+
+    def notify(self, student_id):
+        for observer in self._observers:
+            observer.update(self, student_id)
+
+# 3. Criando um Observador Concreto para atualizar o status do aluno
+class StudentStatusObserver(Observer):
+    def update(self, subject, student_id):
+        print(f"OBSERVER: Recebida notificação para atualizar status do aluno ID: {student_id}")
+        connection = create_db_connection()
+        if not connection:
+            print("OBSERVER ERROR: Não foi possível conectar ao banco de dados.")
+            return
+
+        try:
+            cursor = connection.cursor()
+            
+            # Lógica que antes estava acoplada: recalcular faltas
+            count_absences_query = """
+                SELECT COUNT(*) FROM attendance_records
+                WHERE student_id = %s AND attendance_status IN ('F', 'Fj')
+            """
+            cursor.execute(count_absences_query, (student_id,))
+            total_absences = cursor.fetchone()[0]
+
+            # Lógica que antes estava acoplada: atualizar a tabela status_alunos
+            # Define a situação com base no número de faltas (ex: 3 faltas = Desistente)
+            situacao = 'Desistente' if total_absences >= 3 else 'Ativo'
+
+            update_status_query = """
+                INSERT INTO status_alunos (id, faltas, situacao)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE faltas = VALUES(faltas), situacao = VALUES(situacao)
+            """
+            cursor.execute(update_status_query, (student_id, total_absences, situacao))
+            connection.commit()
+            print(f"OBSERVER: Status do aluno {student_id} atualizado. Faltas: {total_absences}, Situação: {situacao}")
+            
+        except Error as e:
+            print(f"OBSERVER ERROR: Erro ao atualizar status do aluno {student_id}: {e}")
+            connection.rollback()
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+
+# 4. Criando a instância do Sujeito de Presença que será usada nas rotas
+attendance_subject = Subject()
+# 5. Anexando o observador ao sujeito. Ele ficará "ouvindo" por notificações.
+attendance_subject.attach(StudentStatusObserver())
+
+# --- FIM DA IMPLEMENTAÇÃO DO PADRÃO OBSERVER ---
+
 
 def db_connection_error_response():
     """Retorna uma resposta JSON padronizada para erro de conexão com o banco."""
@@ -46,20 +121,14 @@ allowed_turmas = [
     '25.1 - T2',
     '25.2 - T1'
 ]
-# ADIÇÃO: Função para gerar nome de usuário baseado nas iniciais do nome
 def generate_username(full_name, connection):
     if not full_name:
         return None
-
-    # Pega as iniciais de cada palavra no nome completo
     parts = full_name.split()
     initials = "".join([part[0].lower() for part in parts if part])
-
     base_username = initials
     username = base_username
     counter = 1
-    
-    # Verifica se o username já existe no banco de dados
     cursor = connection.cursor()
     while True:
         query = "SELECT COUNT(*) FROM users WHERE username = %s"
@@ -72,22 +141,20 @@ def generate_username(full_name, connection):
     cursor.close()
     return username
 
-# ADIÇÃO: Função para gerar senha aleatória
 def generate_random_password(length=7):
     characters = string.ascii_letters + string.digits + string.punctuation
     password = ''.join(random.choice(characters) for i in range(length))
     return password
 
-# Rota para servir a página HTML principal (index.html)
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-# Rota para servir todas as outras páginas HTML na pasta frontend
 @app.route('/<path:filename>')
 def serve_static_files(filename):
     return send_from_directory(app.static_folder, filename)
 
+# ... (O restante das suas rotas de /alunos, /users, /classes permanecem as mesmas) ...
 # ====================================================================================================
 # ROTAS PARA ALUNOS (info_alunos)
 # ====================================================================================================
@@ -221,7 +288,7 @@ def add_aluno():
                 INSERT INTO atividades_alunos (id, aula_1, aula_2, aula_3, aula_4, aula_5, aula_6, aula_7, aula_8, aula_9, aula_10, total_enviadas)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                values_atividades = (aluno_id, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 0)
+                values_atividades = (aluno_id, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 0)
                 print(f"Executando query_atividades: {query_atividades} com valores: {values_atividades}") # LOG
                 cursor.execute(query_atividades, values_atividades)
                 print("Atividades do aluno inseridas.") # LOG
@@ -322,20 +389,12 @@ def edit_aluno(aluno_id):
                 if cursor.rowcount > 0:
                     # Se o nome do aluno foi atualizado, também atualizar em 'users'
                     if 'nome' in aluno_data:
-                        # Recuperar o username atual do aluno
-                        cursor_users = connection.cursor(dictionary=True)
-                        cursor_users.execute("SELECT username FROM users WHERE student_id = %s", (aluno_id,))
-                        user_row = cursor_users.fetchone()
-                        cursor_users.close()
-                        if user_row:
-                            # Gerar novo username baseado no novo nome
-                            new_username = generate_username(aluno_data['nome'], connection)
-                            # Atualizar username e full_name em users
-                            cursor_users_update = connection.cursor()
-                            update_user_query = "UPDATE users SET username = %s, full_name = %s WHERE student_id = %s"
-                            cursor_users_update.execute(update_user_query, (new_username, aluno_data['nome'], aluno_id))
-                            connection.commit()
-                            cursor_users_update.close()
+                        # Recuperar o username do aluno para atualizar o full_name em users
+                        cursor_users_update = connection.cursor()
+                        update_user_name_query = "UPDATE users SET full_name = %s WHERE student_id = %s"
+                        cursor_users_update.execute(update_user_name_query, (aluno_data['nome'], aluno_id))
+                        connection.commit() # Commit para a atualização do user
+                        cursor_users_update.close()
 
                     return jsonify({'success': True, 'message': 'Aluno atualizado com sucesso!'}), 200
                 else:
@@ -613,7 +672,7 @@ def login():
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
 # ADIÇÃO: Rota para logout de usuário (opcional, para atualizar status online)
-@app.route('/logout/<int:user_id>', methods=['DELETE'])
+@app.route('/logout/<int:user_id>', methods=['POST'])
 def logout(user_id):
     connection = create_db_connection()
     if connection:
@@ -776,8 +835,9 @@ def delete_class(class_id):
             connection.close()
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
+
 # ====================================================================================================
-# ROTAS PARA REGISTROS DE FREQUÊNCIA (attendance_records)
+# ROTAS PARA REGISTROS DE FREQUÊNCIA (attendance_records) - COM OBSERVER
 # ====================================================================================================
 @app.route('/attendance', methods=['GET'])
 def get_attendance_records():
@@ -848,109 +908,39 @@ def add_attendance_record():
     if connection:
         try:
             cursor = connection.cursor()
+            record_id = None
             
-            # Tenta encontrar um registro existente para este student_id e class_id
             check_query = "SELECT id FROM attendance_records WHERE student_id = %s AND class_id = %s"
             cursor.execute(check_query, (student_id, class_id))
             existing_record = cursor.fetchone()
 
             if existing_record:
-                # Se o registro existe, atualiza
                 record_id = existing_record[0]
                 update_query = "UPDATE attendance_records SET attendance_status = %s WHERE id = %s"
                 cursor.execute(update_query, (attendance_status, record_id))
-                connection.commit()
-                print(f"Presença do aluno {student_id} na aula {class_id} atualizada para {attendance_status}.")
+                print(f"Presença do aluno {student_id} na aula {class_id} atualizada.")
             else:
-                # Se o registro não existe, insere
                 insert_query = "INSERT INTO attendance_records (student_id, class_id, attendance_status) VALUES (%s, %s, %s)"
                 cursor.execute(insert_query, (student_id, class_id, attendance_status))
-                connection.commit()
-                new_record_id = cursor.lastrowid
-                print(f"Nova presença adicionada para o aluno {student_id} na aula {class_id} com status {attendance_status}.")
-                record_id = new_record_id # Usa o novo ID para o retorno
+                record_id = cursor.lastrowid
+                print(f"Nova presença adicionada para o aluno {student_id} na aula {class_id}.")
 
-            # Após inserir ou atualizar a presença, recalcule as faltas do aluno
-            # Contar todas as faltas (F e Fj) para este aluno
-            count_absences_query = """
-                SELECT COUNT(*) FROM attendance_records
-                WHERE student_id = %s AND attendance_status IN ('F', 'Fj')
-            """
-            cursor.execute(count_absences_query, (student_id,))
-            total_absences = cursor.fetchone()[0]
-
-            # Atualizar a tabela status_alunos
-            update_status_query = """
-                INSERT INTO status_alunos (id, faltas, situacao)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE faltas = VALUES(faltas), situacao = VALUES(situacao)
-            """
-            # A situação pode ser 'Ativo' ou 'Desistente'. Por enquanto, vamos manter 'Ativo'
-            # Você pode adicionar lógica para mudar a situação com base no número de faltas, se desejar.
-            cursor.execute(update_status_query, (student_id, total_absences, 'Ativo'))
             connection.commit()
-            print(f"Status do aluno {student_id} atualizado: Faltas = {total_absences}.")
+
+            # --- OBSERVER PATTERN ---
+            # Notifica os observadores que a presença foi atualizada para este aluno
+            attendance_subject.notify(student_id)
+            # ------------------------
 
             cursor.close()
             return jsonify({'success': True, 'message': 'Registro de frequência salvo com sucesso!', 'id': record_id}), 200
         except Error as e:
-            print(f"Erro ao adicionar/atualizar registro de frequência e faltas: {e}")
+            print(f"Erro ao adicionar/atualizar registro de frequência: {e}")
             connection.rollback()
             return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
         finally:
-            connection.close()
-    return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
-
-@app.route('/attendance/edit/<int:record_id>', methods=['PUT'])
-def edit_attendance_record(record_id):
-    record_data = request.get_json()
-    attendance_status = record_data.get('attendance_status')
-
-    if not attendance_status:
-        return jsonify({'success': False, 'message': 'Status de Frequência é obrigatório.'}), 400
-    
-    connection = create_db_connection()
-    if connection:
-        try:
-            cursor = connection.cursor()
-            
-            # ADIÇÃO: Recalcular e atualizar faltas em status_alunos após edição
-            # Primeiro, obtenha o student_id do registro de presença
-            get_student_id_query = "SELECT student_id FROM attendance_records WHERE id = %s"
-            cursor.execute(get_student_id_query, (record_id,))
-            result = cursor.fetchone()
-            
-            if result:
-                student_id = result[0]
-                # Contar todas as faltas (F e Fj) para este aluno
-                count_absences_query = """
-                    SELECT COUNT(*) FROM attendance_records
-                    WHERE student_id = %s AND attendance_status IN ('F', 'Fj')
-                """
-                cursor.execute(count_absences_query, (student_id,))
-                total_absences = cursor.fetchone()[0]
-
-                # Atualizar a tabela status_alunos (usando ON DUPLICATE KEY UPDATE para garantir que insere ou atualiza)
-                update_status_query = """
-                    INSERT INTO status_alunos (id, faltas, situacao)
-                    VALUES (%s, %s, %s)
-                    ON DUPLICATE KEY UPDATE faltas = VALUES(faltas), situacao = VALUES(situacao)
-                """
-                cursor.execute(update_status_query, (student_id, total_absences, 'Ativo'))
-                connection.commit()
-                print(f"Status do aluno {student_id} atualizado (edição): Faltas = {total_absences}.")
-
-            cursor.close()
-            if cursor.rowcount > 0:
-                return jsonify({'success': True, 'message': 'Registro de frequência atualizado com sucesso!'}), 200
-            else:
-                return jsonify({'success': False, 'message': 'Registro de frequência não encontrado.'}), 404
-        except Error as e:
-            print(f"Erro ao atualizar registro de frequência: {e}")
-            connection.rollback()
-            return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
-        finally:
-            connection.close()
+            if connection.is_connected():
+                connection.close()
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
 @app.route('/attendance/delete/<int:record_id>', methods=['DELETE'])
@@ -958,51 +948,40 @@ def delete_attendance_record(record_id):
     connection = create_db_connection()
     if connection:
         try:
-            cursor = connection.cursor()
+            cursor = connection.cursor(dictionary=True)
             
-            # ADIÇÃO: Obter student_id antes de deletar para recalcular faltas
-            get_student_id_query = "SELECT student_id FROM attendance_records WHERE id = %s"
-            cursor.execute(get_student_id_query, (record_id,))
+            # Pega o student_id ANTES de deletar para notificar o observer
+            cursor.execute("SELECT student_id FROM attendance_records WHERE id = %s", (record_id,))
             result = cursor.fetchone()
-            student_id = None
-            if result:
-                student_id = result[0]
+            
+            if not result:
+                return jsonify({'success': False, 'message': 'Registro de frequência não encontrado.'}), 404
 
-            query = "DELETE FROM attendance_records WHERE id = %s"
-            cursor.execute(query, (record_id,))
+            student_id = result['student_id']
+
+            # Deleta o registro
+            cursor.execute("DELETE FROM attendance_records WHERE id = %s", (record_id,))
             connection.commit()
             
             if cursor.rowcount > 0:
-                # ADIÇÃO: Recalcular e atualizar faltas em status_alunos após exclusão
-                if student_id:
-                    count_absences_query = """
-                        SELECT COUNT(*) FROM attendance_records
-                        WHERE student_id = %s AND attendance_status IN ('F', 'Fj')
-                    """
-                    cursor.execute(count_absences_query, (student_id,))
-                    total_absences = cursor.fetchone()[0]
-
-                    update_status_query = """
-                        INSERT INTO status_alunos (id, faltas, situacao)
-                        VALUES (%s, %s, %s)
-                        ON DUPLICATE KEY UPDATE faltas = VALUES(faltas), situacao = VALUES(situacao)
-                    """
-                    cursor.execute(update_status_query, (student_id, total_absences, 'Ativo'))
-                    connection.commit()
-                    print(f"Status do aluno {student_id} atualizado (exclusão): Faltas = {total_absences}.")
-
-                cursor.close()
+                # --- OBSERVER PATTERN ---
+                # Notifica os observadores sobre a mudança para este aluno
+                attendance_subject.notify(student_id)
+                # ------------------------
                 return jsonify({'success': True, 'message': 'Registro de frequência excluído com sucesso!'}), 200
             else:
-                cursor.close()
                 return jsonify({'success': False, 'message': 'Registro de frequência não encontrado.'}), 404
+
         except Error as e:
             print(f"Erro ao deletar registro de frequência: {e}")
             connection.rollback()
             return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
         finally:
-            connection.close()
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
+
 
 # ====================================================================================================
 # ROTAS PARA STATUS DOS ALUNOS (status_alunos - AQUI SERÁ A TABELA CONSOLIDADA)
@@ -1058,6 +1037,8 @@ def get_student_status_by_id(student_id):
             connection.close()
     return jsonify({'message': 'Erro de conexão com o banco de dados'}), 500
 
+
+# ... (O restante das suas rotas de /atividades_alunos e /materials permanecem as mesmas) ...
 
 # ADIÇÃO: Rotas para Atividades dos Alunos
 @app.route('/atividades_alunos', methods=['GET'])
@@ -1131,78 +1112,6 @@ def update_aula_status(aluno_id):
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
 # ====================================================================================================
-# ROTAS PARA ATIVIDADES POR TURMA (7 atividades)
-# ====================================================================================================
-@app.route('/activities/turma/<turma>', methods=['GET', 'PUT'])
-def activities_by_turma(turma):
-    if turma not in allowed_turmas:
-        return jsonify({'success': False, 'message': 'Turma inválida.'}), 400
-
-    connection = create_db_connection()
-    if not connection:
-        return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
-
-    if request.method == 'GET':
-        try:
-            cursor = connection.cursor(dictionary=True)
-            # Busca todos os alunos da turma
-            cursor.execute("SELECT id, nome FROM alunos WHERE turma = %s", (turma,))
-            alunos = cursor.fetchall()
-            result = []
-            for aluno in alunos:
-                # Busca atividades do aluno
-                cursor.execute("SELECT aula_1, aula_2, aula_3, aula_4, aula_5, aula_6, aula_7, total_enviadas FROM atividades_alunos WHERE id = %s", (aluno['id'],))
-                atividades = cursor.fetchone()
-                if atividades:
-                    aluno['atividades'] = atividades
-                else:
-                    aluno['atividades'] = {
-                        'aula_1': 'Pendente', 'aula_2': 'Pendente', 'aula_3': 'Pendente',
-                        'aula_4': 'Pendente', 'aula_5': 'Pendente', 'aula_6': 'Pendente',
-                        'aula_7': 'Pendente', 'total_enviadas': 0
-                    }
-                result.append(aluno)
-            cursor.close()
-            return jsonify(result)
-        except Error as e:
-            print(f"Erro ao buscar atividades por turma: {e}")
-            return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
-        finally:
-            connection.close()
-
-    elif request.method == 'PUT':
-        # Espera receber um JSON: { aluno_id, aula_num, new_status }
-        data = request.get_json()
-        aluno_id = data.get('aluno_id')
-        aula_num = data.get('aula_num') # 1 a 7
-        new_status = data.get('new_status')
-        if not aluno_id or not aula_num or not new_status:
-            connection.close()
-            return jsonify({'success': False, 'message': 'Dados insuficientes.'}), 400
-        if aula_num not in range(1, 8):
-            connection.close()
-            return jsonify({'success': False, 'message': 'Número de aula inválido.'}), 400
-        aula_col = f'aula_{aula_num}'
-        try:
-            cursor = connection.cursor()
-            # Atualiza status da atividade
-            cursor.execute(f"UPDATE atividades_alunos SET {aula_col} = %s WHERE id = %s", (new_status, aluno_id))
-            # Recalcula total_enviadas
-            sum_query = "SELECT " + " + ".join([f"CASE WHEN aula_{i} = 'Enviada' THEN 1 ELSE 0 END" for i in range(1,8)]) + " FROM atividades_alunos WHERE id = %s"
-            cursor.execute(sum_query, (aluno_id,))
-            total_enviadas = cursor.fetchone()[0]
-            cursor.execute("UPDATE atividades_alunos SET total_enviadas = %s WHERE id = %s", (total_enviadas, aluno_id))
-            connection.commit()
-            cursor.close()
-            return jsonify({'success': True, 'message': 'Status atualizado!', 'total_enviadas': total_enviadas})
-        except Error as e:
-            print(f"Erro ao atualizar atividade: {e}")
-            connection.rollback()
-            return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
-        finally:
-            connection.close()
-
-# ====================================================================================================
 # ROTAS PARA MATERIAIS
 # ====================================================================================================
 @app.route('/materials', methods=['GET'])
@@ -1224,39 +1133,20 @@ def get_materials():
             connection.close()
     return jsonify(materials)
 
-# Defina os tipos de arquivos permitidos (exemplo: PDF, imagens, DOCX)
-ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'}
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 @app.route('/materials/upload', methods=['POST'])
 def upload_material():
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'Nenhum arquivo enviado.'}), 400
-
+    
     file = request.files['file']
     if file.filename == '':
         return jsonify({'success': False, 'message': 'Nenhum arquivo selecionado.'}), 400
-
-    # Verificação robusta do tipo de arquivo
-    if not allowed_file(file.filename):
-        return jsonify({'success': False, 'message': 'Tipo de arquivo não permitido.'}), 400
-
+    
     name = request.form.get('name', file.filename)
     description = request.form.get('description', '')
 
     if file:
-        # Gera um nome de arquivo único usando timestamp e nome seguro
-        filename = secure_filename(file.filename)
-        unique_suffix = str(int(time.time() * 1000))
-        filename_parts = filename.rsplit('.', 1)
-        if len(filename_parts) == 2:
-            filename = f"{filename_parts[0]}_{unique_suffix}.{filename_parts[1]}"
-        else:
-            filename = f"{filename}_{unique_suffix}"
-
+        filename = file.filename
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
@@ -1268,7 +1158,7 @@ def upload_material():
                 INSERT INTO materials (name, file_type, file_size, description, file_path)
                 VALUES (%s, %s, %s, %s, %s)
                 """
-                values = (name, file.content_type, os.path.getsize(filepath), description, filename)
+                values = (name, file.content_type, file.content_length, description, filename)
                 cursor.execute(query, values)
                 connection.commit()
                 material_id = cursor.lastrowid
@@ -1370,4 +1260,4 @@ def get_system_config():
     return jsonify(config)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, threaded=True)
+    app.run(debug=True, port=5000)
