@@ -17,7 +17,7 @@
                     <li id="navAdmin"><a href="admin.html">Administração de Usuários</a></li>
                     <li id="navBancoDados"><a href="database.html">Banco de Dados</a></li>
                     <li id="navDiarioClasseProf"><a href="teacher-diary.html" class="active">Diário de Classe</a></li>
-                    <li id="navActivitiesProf"><a href="teacher-activities.html">Controle de Atividades</a></li>
+                    <li id="navActivitiesProf"><a href="teacher-activities.html">Atividades</a></li>
                     <li id="navMateriaisProf"><a href="teacher-materials.html">Materiais</a></li>
                     
                     <li class="dropdown">
@@ -53,36 +53,28 @@
             <div class="attendance-controls">
                 <div class="dropdown-group">
                     <div class="form-group">
-                        <label for="turmaSelect">Turma:</label>
+                        <label for="turmaSelect">Selecione a Turma:</label>
                         <select id="turmaSelect" onchange="handleTurmaChange()">
                             <option value="">-- Carregando turmas... --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="classSelect">Aula:</label>
-                        <select id="classSelect" onchange="loadAttendanceForSelectedClass()" disabled>
-                            <option value="">-- Selecione uma turma --</option>
                         </select>
                     </div>
                 </div>
             </div>
 
-            <div class="attendance-table-container">
+            <div class="attendance-table-container" style="overflow-x: auto;">
                 <h2>Lista de Presença</h2>
-                <table class="database-table">
-                    <thead>
+                <table class="database-table attendance-table">
+                    <thead id="fullAttendanceTableHeader">
+                        </thead>
+                    <tbody id="fullAttendanceTableBody">
                         <tr>
-                            <th>ID do Aluno</th>
-                            <th>Nome do Aluno</th>
-                            <th>Status da Presença</th>
+                            <td colspan="15" style="text-align: center; padding: 20px;">Selecione uma turma para exibir a lista de presença.</td>
                         </tr>
-                    </thead>
-                    <tbody id="attendanceTableBody">
-                        </tbody>
+                    </tbody>
                 </table>
             </div>
             <div class="save-attendance-btn-container">
-                <button class="action-btn primary" onclick="saveAttendance()">Salvar Presença</button>
+                <button class="action-btn primary" onclick="saveAllAttendance()">Salvar Presença</button>
             </div>
         </main>
     </div>
@@ -92,53 +84,29 @@
     <script>
         let allClasses = [];
         let allStudents = [];
-        let studentsInSelectedTurma = []; // Nova variável para guardar alunos da turma selecionada
-        let currentAttendanceRecords = [];
+        let allAttendance = [];
+        let studentsInSelectedTurma = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Primeiro, buscamos alunos e aulas
-            await loadInitialStudents(); 
-            await loadInitialClasses();
-            // Depois, populamos o seletor de turmas
-            populateTurmaSelect();
+            showLoading();
+            try {
+                [allStudents, allClasses, allAttendance] = await Promise.all([
+                    window.fetchStudents(),
+                    window.fetchClasses(),
+                    window.fetchAttendanceRecords()
+                ]);
+                populateTurmaSelect();
+            } catch (error) {
+                console.error('Erro ao carregar dados iniciais:', error);
+                showGlobalMessageModal('Erro Crítico', 'Não foi possível carregar os dados do diário. Tente recarregar a página.');
+            } finally {
+                hideLoading();
+            }
         });
 
-        async function loadInitialClasses() {
-            showLoading();
-            try {
-                allClasses = await window.fetchClasses();
-                // A população do seletor de aulas agora é feita em handleTurmaChange
-            } catch (error) {
-                console.error('Erro ao buscar aulas:', error);
-                showGlobalMessageModal('Erro', 'Não foi possível carregar a lista de aulas.');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        async function loadInitialStudents() {
-            showLoading();
-            try {
-                allStudents = await window.fetchStudents();
-            } catch (error) {
-                console.error('Erro ao buscar alunos:', error);
-                showGlobalMessageModal('Erro', 'Não foi possível carregar a lista de alunos.');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // *** NOVA FUNÇÃO ***
-        // Popula o seletor de turmas com base nos alunos carregados
         function populateTurmaSelect() {
             const selectElement = document.getElementById('turmaSelect');
-            if (allStudents.length === 0) {
-                selectElement.innerHTML = '<option value="">Nenhuma turma encontrada</option>';
-                return;
-            }
-            // Pega apenas os nomes únicos de turma
-            const turmas = [...new Set(allStudents.map(student => student.turma))];
-            turmas.sort(); // Ordena as turmas
+            const turmas = [...new Set(allStudents.map(student => student.turma))].sort();
             
             selectElement.innerHTML = '<option value="">-- Selecione uma turma --</option>';
             turmas.forEach(turma => {
@@ -148,62 +116,111 @@
                 selectElement.appendChild(option);
             });
         }
-        
-        // *** NOVA FUNÇÃO ***
-        // É chamada quando o professor seleciona uma turma
+
+        // *** FUNÇÃO PRINCIPAL MODIFICADA ***
         function handleTurmaChange() {
             const selectedTurma = document.getElementById('turmaSelect').value;
-            const classSelect = document.getElementById('classSelect');
-            const attendanceTableBody = document.getElementById('attendanceTableBody');
-
-            attendanceTableBody.innerHTML = ''; // Limpa a tabela de presença
+            const tableHeader = document.getElementById('fullAttendanceTableHeader');
+            const tableBody = document.getElementById('fullAttendanceTableBody');
 
             if (!selectedTurma) {
-                classSelect.innerHTML = '<option value="">-- Selecione uma turma primeiro --</option>';
-                classSelect.disabled = true;
-                studentsInSelectedTurma = [];
+                tableHeader.innerHTML = '';
+                tableBody.innerHTML = '<tr><td colspan="15" style="text-align: center; padding: 20px;">Selecione uma turma para exibir a lista de presença.</td></tr>';
                 return;
             }
 
-            // Filtra os alunos que pertencem à turma selecionada
-            studentsInSelectedTurma = allStudents.filter(student => student.turma === selectedTurma);
-            studentsInSelectedTurma.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')); // Ordena por nome
+            // Filtra os alunos da turma selecionada
+            studentsInSelectedTurma = allStudents
+                .filter(student => student.turma === selectedTurma)
+                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+            
+            // *** NOVA LÓGICA ***
+            // Filtra as aulas para incluir apenas as que foram 'completed' (realizadas)
+            const completedClasses = allClasses.filter(cls => cls.status === 'completed');
 
-            // Agora, popula e habilita o seletor de aulas
-            classSelect.disabled = false;
-            classSelect.innerHTML = '<option value="">-- Selecione uma aula --</option>';
-            allClasses.forEach(cls => {
-                const option = document.createElement('option');
-                option.value = cls.id;
-                option.textContent = `${cls.title} (${new Date(cls.date).toLocaleDateString('pt-BR')})`;
-                classSelect.appendChild(option);
+            // Passa a lista de aulas filtrada para as funções que constroem a tabela
+            buildTableHeader(completedClasses);
+            buildTableBody(completedClasses);
+        }
+
+        // *** FUNÇÃO MODIFICADA ***
+        // Agora aceita uma lista de aulas como parâmetro
+        function buildTableHeader(classesToDisplay) {
+            const tableHeader = document.getElementById('fullAttendanceTableHeader');
+            let headerHtml = `<tr><th class="name-header">Nome do Aluno</th>`;
+
+            if (classesToDisplay.length === 0) {
+                headerHtml += `<th>Nenhuma aula realizada encontrada</th>`;
+            } else {
+                classesToDisplay.forEach(cls => {
+                    const date = new Date(cls.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    headerHtml += `<th>${cls.title}<br>(${date})</th>`;
+                });
+            }
+
+            headerHtml += `
+                    <th class="total-present">Total P</th>
+                    <th class="total-justified">Total FJ</th>
+                    <th class="total-absent">Total F</th>
+                </tr>
+            `;
+            tableHeader.innerHTML = headerHtml;
+        }
+
+        // *** FUNÇÃO MODIFICADA ***
+        // Agora também aceita a lista de aulas como parâmetro
+        function buildTableBody(classesToDisplay) {
+            const tableBody = document.getElementById('fullAttendanceTableBody');
+            tableBody.innerHTML = '';
+            const colspan = classesToDisplay.length + 4;
+
+            if (studentsInSelectedTurma.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Nenhum aluno encontrado nesta turma.</td></tr>`;
+                return;
+            }
+             if (classesToDisplay.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center; padding: 20px;">Ainda não há aulas marcadas como "Realizada" para esta turma.</td></tr>`;
+                return;
+            }
+
+
+            studentsInSelectedTurma.forEach(student => {
+                const row = document.createElement('tr');
+                let rowHtml = `<td class="student-name">${student.nome}</td>`;
+                
+                let totalP = 0, totalFj = 0, totalF = 0;
+
+                // Itera apenas sobre as aulas filtradas
+                classesToDisplay.forEach(cls => {
+                    const record = allAttendance.find(rec => rec.student_id == student.id && rec.class_id == cls.id);
+                    const status = record ? record.attendance_status : 'F';
+
+                    if (status === 'P') totalP++;
+                    else if (status === 'Fj') totalFj++;
+                    else if (status === 'F') totalF++;
+                    
+                    rowHtml += `
+                        <td class="attendance-cell ${getStatusClass(status)}">
+                            <select class="attendance-status-select" data-student-id="${student.id}" data-class-id="${cls.id}">
+                                <option value="P" ${status === 'P' ? 'selected' : ''}>P</option>
+                                <option value="F" ${status === 'F' ? 'selected' : ''}>F</option>
+                                <option value="Fj" ${status === 'Fj' ? 'selected' : ''}>Fj</option>
+                            </select>
+                        </td>
+                    `;
+                });
+                
+                rowHtml += `
+                    <td class="total-present">${totalP}</td>
+                    <td class="total-justified">${totalFj}</td>
+                    <td class="total-absent">${totalF}</td>
+                `;
+                
+                row.innerHTML = rowHtml;
+                tableBody.appendChild(row);
             });
         }
-
-        async function loadAttendanceForSelectedClass() {
-            const selectedClassId = document.getElementById('classSelect').value;
-            const attendanceTableBody = document.getElementById('attendanceTableBody');
-            attendanceTableBody.innerHTML = '';
-
-            if (!selectedClassId) {
-                currentAttendanceRecords = [];
-                return;
-            }
-            showLoading();
-            try {
-                const allAttendance = await window.fetchAttendanceRecords();
-                currentAttendanceRecords = allAttendance.filter(record => record.class_id == selectedClassId);
-                
-                displayAttendanceTable(selectedClassId);
-
-            } catch (error) {
-                console.error('Erro ao buscar registros de presença:', error);
-                showGlobalMessageModal('Erro', 'Não foi possível carregar os registros de presença para esta aula.');
-            } finally {
-                hideLoading();
-            }
-        }
-
+        
         function getStatusClass(status) {
             switch (status) {
                 case 'P': return 'present';
@@ -212,144 +229,74 @@
                 default: return '';
             }
         }
-        
-        // *** FUNÇÃO MODIFICADA ***
-        // Agora usa a lista de alunos já filtrada pela turma
-        function displayAttendanceTable(selectedClassId) {
-            const attendanceTableBody = document.getElementById('attendanceTableBody');
-            attendanceTableBody.innerHTML = '';
 
-            if (studentsInSelectedTurma.length === 0) {
-                attendanceTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Nenhum aluno encontrado nesta turma.</td></tr>`;
-                return;
-            }
-
-            studentsInSelectedTurma.forEach(student => {
-                const row = document.createElement('tr');
-                const existingRecord = currentAttendanceRecords.find(rec => rec.student_id == student.id);
-                const recordId = existingRecord ? existingRecord.id : ''; 
-                const currentStatus = existingRecord ? existingRecord.attendance_status : 'F';
-
-                row.innerHTML = `
-                    <td>${student.id}</td>
-                    <td>${student.nome}</td>
-                    <td class="attendance-cell ${getStatusClass(currentStatus)}">
-                        <select class="attendance-status-select" data-student-id="${student.id}" data-class-id="${selectedClassId}" data-record-id="${recordId}">
-                            <option value="P" ${currentStatus === 'P' ? 'selected' : ''}>Presente</option>
-                            <option value="F" ${currentStatus === 'F' ? 'selected' : ''}>Falta</option>
-                            <option value="Fj" ${currentStatus === 'Fj' ? 'selected' : ''}>Falta Justificada</option>
-                        </select>
-                    </td>
-                `;
-                attendanceTableBody.appendChild(row);
-
-                const selectElement = row.querySelector('.attendance-status-select');
-                selectElement.addEventListener('change', (e) => {
-                    const cell = e.target.closest('.attendance-cell');
-                    cell.classList.remove('present', 'absent', 'justified');
-                    cell.classList.add(getStatusClass(e.target.value));
-                });
-            });
-        }
-
-        async function saveAttendance() {
-            const selectedClassId = document.getElementById('classSelect').value;
+        async function saveAllAttendance() {
             const selectedTurma = document.getElementById('turmaSelect').value;
-
             if (!selectedTurma) {
-                showGlobalMessageModal('Atenção', 'Por favor, selecione uma turma.');
-                return;
-            }
-            if (!selectedClassId) {
-                showGlobalMessageModal('Atenção', 'Por favor, selecione uma aula antes de salvar a presença.');
+                showGlobalMessageModal('Atenção', 'Por favor, selecione uma turma antes de salvar.');
                 return;
             }
 
-            const attendanceUpdates = [];
-            const selectElements = document.querySelectorAll('#attendanceTableBody .attendance-status-select');
-
-            selectElements.forEach(select => {
-                const studentId = select.dataset.studentId;
-                const classId = select.dataset.classId;
-                const newStatus = select.value;
-
-                attendanceUpdates.push({
-                    student_id: parseInt(studentId),
-                    class_id: parseInt(classId),
-                    attendance_status: newStatus
+            const updates = [];
+            document.querySelectorAll('#fullAttendanceTableBody .attendance-status-select').forEach(select => {
+                updates.push({
+                    student_id: parseInt(select.dataset.studentId),
+                    class_id: parseInt(select.dataset.classId),
+                    attendance_status: select.value
                 });
             });
 
-            let successCount = 0;
-            let errorCount = 0;
+            if (updates.length === 0) {
+                showGlobalMessageModal('Informação', 'Nenhuma presença para salvar.');
+                return;
+            }
 
             showLoading();
-            for (const update of attendanceUpdates) {
-                try {
-                    const data = await window.saveAttendanceRecords(update);
+            const promises = updates.map(update => window.saveAttendanceRecords(update));
+            
+            try {
+                const results = await Promise.all(promises);
+                const errors = results.filter(res => !res.success);
 
-                    if (data.success) {
-                        successCount++;
-                        if (data.id) {
-                            const selectElement = document.querySelector(`select[data-student-id="${update.student_id}"][data-class-id="${update.class_id}"]`);
-                            if (selectElement) {
-                                selectElement.dataset.recordId = data.id;
-                            }
-                        }
-                    } else {
-                        errorCount++;
-                        console.error(`Erro ao salvar presença para aluno ${update.student_id} na aula ${update.class_id}: ${data.message}`);
-                    }
-                } catch (error) {
-                    errorCount++;
-                    console.error(`Erro de rede/servidor ao salvar presença para aluno ${update.student_id}:`, error);
+                if (errors.length === 0) {
+                    showGlobalMessageModal('Sucesso', `Presença salva para ${results.length} registros.`);
+                    // Recarrega os dados de presença do backend
+                    allAttendance = await window.fetchAttendanceRecords();
+                    // Redesenha apenas o corpo da tabela para manter o cabeçalho
+                    const completedClasses = allClasses.filter(cls => cls.status === 'completed');
+                    buildTableBody(completedClasses);
+                } else {
+                    showGlobalMessageModal('Atenção', `Presença salva com ${errors.length} erros. Verifique o console.`);
                 }
+            } catch (error) {
+                console.error("Erro ao salvar múltiplas presenças:", error);
+                showGlobalMessageModal('Erro Crítico', 'Ocorreu um erro de rede ao salvar os dados.');
+            } finally {
+                hideLoading();
             }
-            hideLoading();
-
-            if (errorCount === 0) {
-                showGlobalMessageModal('Sucesso', `Presença salva para ${successCount} alunos.`);
-            } else {
-                showGlobalMessageModal('Atenção', `Presença salva para ${successCount} alunos, com ${errorCount} erros. Verifique o console para detalhes.`);
-            }
-            await loadAttendanceForSelectedClass(); 
         }
 
+        // Funções auxiliares (logout, whatsapp, etc.)
         function abrirWhatsApp() {
-            const whatsappLink = "https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c";
-            window.open(whatsappLink, '_blank');
+            window.open("https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c", '_blank');
         }
 
         async function logout() {
             const userId = localStorage.getItem("userId");
             if (userId) {
-                try {
-                    await fetch(`http://127.0.0.1:5000/logout/${userId}`, {
-                        method: 'POST',
-                    });
-                    console.log('Status online atualizado para offline.');
-                } catch (error) {
-                    console.error('Erro ao atualizar status de logout:', error);
-                }
+                await fetch(`http://127.0.0.1:5000/logout/${userId}`, { method: 'POST' }).catch(console.error);
             }
-            localStorage.removeItem("isLoggedIn");
-            localStorage.removeItem("userId");
-            localStorage.removeItem("username");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("userName");
-            localStorage.removeItem("userStudentId");
+            localStorage.clear();
             window.location.href = "index.html";
         }
 
-        const userAvatar = document.querySelector(".user-avatar")
+        const userAvatar = document.querySelector(".user-avatar");
         if (userAvatar) {
             userAvatar.addEventListener("click", () => {
-                if (confirm("Deseja fazer logout?")) {
-                    logout()
-                }
-            })
-            userAvatar.style.cursor = "pointer"
-            userAvatar.title = "Clique para fazer logout"
+                if (confirm("Deseja fazer logout?")) logout();
+            });
+            userAvatar.style.cursor = "pointer";
+            userAvatar.title = "Clique para fazer logout";
         }
     </script>
 </body>
