@@ -17,7 +17,7 @@
                     <li id="navAdmin"><a href="admin.html">Administração de Usuários</a></li>
                     <li id="navBancoDados"><a href="database.html">Banco de Dados</a></li>
                     <li id="navDiarioClasseProf"><a href="teacher-diary.html">Diário de Classe</a></li>
-                    <li id="navActivitiesProf"><a href="teacher-activities.html">Controle de Atividades</a></li>
+                    <li id="navActivitiesProf"><a href="teacher-activities.html">Atividades</a></li>
                     <li id="navMateriaisProf"><a href="teacher-materials.html">Materiais</a></li>
                     
                     <li class="dropdown">
@@ -67,8 +67,15 @@
                         <tr>
                             <th>ID do Aluno</th>
                             <th>Nome do Aluno</th>
-                            <th>Total Entregues</th>
-                            </tr>
+                            <th>Atividade 1</th>
+                            <th>Atividade 2</th>
+                            <th>Atividade 3</th>
+                            <th>Atividade 4</th>
+                            <th>Atividade 5</th>
+                            <th>Atividade 6</th>
+                            <th>Atividade 7</th>
+                            <th>Total Entregue</th>
+                        </tr>
                     </thead>
                     <tbody id="activitiesTableBody">
                         </tbody>
@@ -85,7 +92,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await fetchAllData();
-            populateClassSelect(allClasses);
+            populateClassSelect();
         });
 
         async function fetchAllData() {
@@ -104,6 +111,7 @@
                 allClasses = classesResponse;
                 config = configResponse;
                 
+                console.log('allStudents:', allStudents); // LOG DE DEPURAÇÃO
                 renderActivityTableHeaders();
 
             } catch (error) {
@@ -117,21 +125,13 @@
         function renderActivityTableHeaders() {
             const headerRow = document.querySelector('.database-table thead tr');
             document.querySelectorAll('.activity-header').forEach(el => el.remove());
-
-            for (let i = 1; i <= config.numberOfActivities; i++) {
-                const th = document.createElement('th');
-                th.textContent = `Aula ${i}`;
-                th.classList.add('activity-header');
-                headerRow.appendChild(th);
-            }
         }
 
-        function populateClassSelect(classes) {
+        function populateClassSelect() {
             const selectElement = document.getElementById('classSelect');
-            selectElement.innerHTML = '<option value="">-- Selecione uma turma --</option>'; 
-            const uniqueTurmas = [...new Set(allStudents.map(student => student.turma))];
-            uniqueTurmas.sort();
-            uniqueTurmas.forEach(turma => {
+            selectElement.innerHTML = '<option value="">-- Selecione uma turma --</option>';
+            const allowedTurmas = ['25.1 - T1', '25.1 - T2', '25.2 - T1'];
+            allowedTurmas.forEach(turma => {
                 const option = document.createElement('option');
                 option.value = turma;
                 option.textContent = turma;

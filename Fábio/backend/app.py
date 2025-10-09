@@ -1,13 +1,15 @@
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, make_response
 import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import random # ADIÇÃO: Para gerar senhas aleatórias
 import string # ADIÇÃO: Para caracteres de senhas aleatórias
+import time
+from werkzeug.utils import secure_filename
 
 # CORREÇÃO AQUI: static_folder deve apontar para o nome real da sua pasta de frontend
-app = Flask(__name__, static_folder='../PROJETO_FINAL', static_url_path='/')
+app = Flask(__name__, static_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), '../PROJETO_FINAL')), static_url_path='/')
 
 # Configurações do Banco de Dados MySQL
 db_config = {
@@ -23,6 +25,10 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+def db_connection_error_response():
+    """Retorna uma resposta JSON padronizada para erro de conexão com o banco."""
+    return make_response(jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados. Tente novamente mais tarde.'}), 503)
+
 def create_db_connection():
     """Cria e retorna uma conexão com o banco de dados."""
     connection = None
@@ -32,8 +38,14 @@ def create_db_connection():
             print("Conexão com o banco de dados MySQL bem-sucedida!")
     except Error as e:
         print(f"Erro ao conectar ao MySQL: {e}")
+        connection = None
     return connection
 
+allowed_turmas = [
+    '25.1 - T1',
+    '25.1 - T2',
+    '25.2 - T1'
+]
 # ADIÇÃO: Função para gerar nome de usuário baseado nas iniciais do nome
 def generate_username(full_name, connection):
     if not full_name:
@@ -82,20 +94,22 @@ def serve_static_files(filename):
 @app.route('/alunos')
 def get_alunos():
     connection = create_db_connection()
+    if not connection:
+        return db_connection_error_response()
     alunos = []
-    if connection:
-        try:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT id, turma, nome, email, telefone, data_nascimento, rg, cpf, endereco, escolaridade, escola, responsavel FROM alunos")
-            alunos = cursor.fetchall()
-            for aluno in alunos:
-                if aluno.get('data_nascimento'):
-                    aluno['data_nascimento'] = aluno['data_nascimento'].strftime('%Y-%m-%d')
-            cursor.close()
-        except Error as e:
-            print(f"Erro ao buscar alunos: {e}")
-        finally:
-            connection.close()
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT id, turma, nome, email, telefone, data_nascimento, rg, cpf, endereco, escolaridade, escola, responsavel FROM alunos")
+        alunos = cursor.fetchall()
+        for aluno in alunos:
+            if aluno.get('data_nascimento'):
+                aluno['data_nascimento'] = aluno['data_nascimento'].strftime('%Y-%m-%d')
+        cursor.close()
+    except Error as e:
+        print(f"Erro ao buscar alunos: {e}")
+        return jsonify({'message': 'Erro interno do servidor'}), 500
+    finally:
+        connection.close()
     return jsonify(alunos)
 
 @app.route('/alunos/<int:aluno_id>', methods=['GET'])
@@ -136,11 +150,10 @@ def add_aluno():
             return jsonify({'success': False, 'message': 'Nome e Turma são obrigatórios'}), 400
 
         # ADIÇÃO: Validação para a coluna 'turma'
-        allowed_turmas = ['25.1 - T1', '25.1 - T2', '25.2 - T1']
         if aluno_data.get('turma') not in allowed_turmas:
             print(f"Erro: Turma inválida - {aluno_data.get('turma')}") # LOG
             return jsonify({'success': False, 'message': 'Turma inválida. Opções válidas: 25.1 - T1, 25.1 - T2, 25.2 - T1.'}), 400
-        
+
         # ADIÇÃO: Validações para outros campos, conforme condições
         if not aluno_data.get('cpf'):
             print("Erro: CPF é obrigatório.") # LOG
@@ -208,7 +221,7 @@ def add_aluno():
                 INSERT INTO atividades_alunos (id, aula_1, aula_2, aula_3, aula_4, aula_5, aula_6, aula_7, aula_8, aula_9, aula_10, total_enviadas)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                values_atividades = (aluno_id, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 0)
+                values_atividades = (aluno_id, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 0)
                 print(f"Executando query_atividades: {query_atividades} com valores: {values_atividades}") # LOG
                 cursor.execute(query_atividades, values_atividades)
                 print("Atividades do aluno inseridas.") # LOG
@@ -274,7 +287,6 @@ def edit_aluno(aluno_id):
 
         # ADIÇÃO: Validação para a coluna 'turma' se estiver sendo atualizada
         if 'turma' in aluno_data:
-            allowed_turmas = ['25.1 - T1', '25.1 - T2', '25.2 - T1']
             if aluno_data['turma'] not in allowed_turmas:
                 return jsonify({'success': False, 'message': 'Turma inválida. Opções válidas: 25.1 - T1, 25.1 - T2, 25.2 - T1.'}), 400
         # ADIÇÃO: Adicione validações para outros campos que podem ser únicos ou ter regras de formato
@@ -310,12 +322,20 @@ def edit_aluno(aluno_id):
                 if cursor.rowcount > 0:
                     # Se o nome do aluno foi atualizado, também atualizar em 'users'
                     if 'nome' in aluno_data:
-                        # Recuperar o username do aluno para atualizar o full_name em users
-                        cursor_users_update = connection.cursor()
-                        update_user_name_query = "UPDATE users SET full_name = %s WHERE student_id = %s"
-                        cursor_users_update.execute(update_user_name_query, (aluno_data['nome'], aluno_id))
-                        connection.commit() # Commit para a atualização do user
-                        cursor_users_update.close()
+                        # Recuperar o username atual do aluno
+                        cursor_users = connection.cursor(dictionary=True)
+                        cursor_users.execute("SELECT username FROM users WHERE student_id = %s", (aluno_id,))
+                        user_row = cursor_users.fetchone()
+                        cursor_users.close()
+                        if user_row:
+                            # Gerar novo username baseado no novo nome
+                            new_username = generate_username(aluno_data['nome'], connection)
+                            # Atualizar username e full_name em users
+                            cursor_users_update = connection.cursor()
+                            update_user_query = "UPDATE users SET username = %s, full_name = %s WHERE student_id = %s"
+                            cursor_users_update.execute(update_user_query, (new_username, aluno_data['nome'], aluno_id))
+                            connection.commit()
+                            cursor_users_update.close()
 
                     return jsonify({'success': True, 'message': 'Aluno atualizado com sucesso!'}), 200
                 else:
@@ -593,7 +613,7 @@ def login():
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
 # ADIÇÃO: Rota para logout de usuário (opcional, para atualizar status online)
-@app.route('/logout/<int:user_id>', methods=['POST'])
+@app.route('/logout/<int:user_id>', methods=['DELETE'])
 def logout(user_id):
     connection = create_db_connection()
     if connection:
@@ -1111,6 +1131,78 @@ def update_aula_status(aluno_id):
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
 
 # ====================================================================================================
+# ROTAS PARA ATIVIDADES POR TURMA (7 atividades)
+# ====================================================================================================
+@app.route('/activities/turma/<turma>', methods=['GET', 'PUT'])
+def activities_by_turma(turma):
+    if turma not in allowed_turmas:
+        return jsonify({'success': False, 'message': 'Turma inválida.'}), 400
+
+    connection = create_db_connection()
+    if not connection:
+        return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados.'}), 500
+
+    if request.method == 'GET':
+        try:
+            cursor = connection.cursor(dictionary=True)
+            # Busca todos os alunos da turma
+            cursor.execute("SELECT id, nome FROM alunos WHERE turma = %s", (turma,))
+            alunos = cursor.fetchall()
+            result = []
+            for aluno in alunos:
+                # Busca atividades do aluno
+                cursor.execute("SELECT aula_1, aula_2, aula_3, aula_4, aula_5, aula_6, aula_7, total_enviadas FROM atividades_alunos WHERE id = %s", (aluno['id'],))
+                atividades = cursor.fetchone()
+                if atividades:
+                    aluno['atividades'] = atividades
+                else:
+                    aluno['atividades'] = {
+                        'aula_1': 'Pendente', 'aula_2': 'Pendente', 'aula_3': 'Pendente',
+                        'aula_4': 'Pendente', 'aula_5': 'Pendente', 'aula_6': 'Pendente',
+                        'aula_7': 'Pendente', 'total_enviadas': 0
+                    }
+                result.append(aluno)
+            cursor.close()
+            return jsonify(result)
+        except Error as e:
+            print(f"Erro ao buscar atividades por turma: {e}")
+            return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
+        finally:
+            connection.close()
+
+    elif request.method == 'PUT':
+        # Espera receber um JSON: { aluno_id, aula_num, new_status }
+        data = request.get_json()
+        aluno_id = data.get('aluno_id')
+        aula_num = data.get('aula_num') # 1 a 7
+        new_status = data.get('new_status')
+        if not aluno_id or not aula_num or not new_status:
+            connection.close()
+            return jsonify({'success': False, 'message': 'Dados insuficientes.'}), 400
+        if aula_num not in range(1, 8):
+            connection.close()
+            return jsonify({'success': False, 'message': 'Número de aula inválido.'}), 400
+        aula_col = f'aula_{aula_num}'
+        try:
+            cursor = connection.cursor()
+            # Atualiza status da atividade
+            cursor.execute(f"UPDATE atividades_alunos SET {aula_col} = %s WHERE id = %s", (new_status, aluno_id))
+            # Recalcula total_enviadas
+            sum_query = "SELECT " + " + ".join([f"CASE WHEN aula_{i} = 'Enviada' THEN 1 ELSE 0 END" for i in range(1,8)]) + " FROM atividades_alunos WHERE id = %s"
+            cursor.execute(sum_query, (aluno_id,))
+            total_enviadas = cursor.fetchone()[0]
+            cursor.execute("UPDATE atividades_alunos SET total_enviadas = %s WHERE id = %s", (total_enviadas, aluno_id))
+            connection.commit()
+            cursor.close()
+            return jsonify({'success': True, 'message': 'Status atualizado!', 'total_enviadas': total_enviadas})
+        except Error as e:
+            print(f"Erro ao atualizar atividade: {e}")
+            connection.rollback()
+            return jsonify({'success': False, 'message': 'Erro interno do servidor.'}), 500
+        finally:
+            connection.close()
+
+# ====================================================================================================
 # ROTAS PARA MATERIAIS
 # ====================================================================================================
 @app.route('/materials', methods=['GET'])
@@ -1132,20 +1224,39 @@ def get_materials():
             connection.close()
     return jsonify(materials)
 
+# Defina os tipos de arquivos permitidos (exemplo: PDF, imagens, DOCX)
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route('/materials/upload', methods=['POST'])
 def upload_material():
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'Nenhum arquivo enviado.'}), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({'success': False, 'message': 'Nenhum arquivo selecionado.'}), 400
-    
+
+    # Verificação robusta do tipo de arquivo
+    if not allowed_file(file.filename):
+        return jsonify({'success': False, 'message': 'Tipo de arquivo não permitido.'}), 400
+
     name = request.form.get('name', file.filename)
     description = request.form.get('description', '')
 
     if file:
-        filename = file.filename
+        # Gera um nome de arquivo único usando timestamp e nome seguro
+        filename = secure_filename(file.filename)
+        unique_suffix = str(int(time.time() * 1000))
+        filename_parts = filename.rsplit('.', 1)
+        if len(filename_parts) == 2:
+            filename = f"{filename_parts[0]}_{unique_suffix}.{filename_parts[1]}"
+        else:
+            filename = f"{filename}_{unique_suffix}"
+
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
@@ -1157,7 +1268,7 @@ def upload_material():
                 INSERT INTO materials (name, file_type, file_size, description, file_path)
                 VALUES (%s, %s, %s, %s, %s)
                 """
-                values = (name, file.content_type, file.content_length, description, filename)
+                values = (name, file.content_type, os.path.getsize(filepath), description, filename)
                 cursor.execute(query, values)
                 connection.commit()
                 material_id = cursor.lastrowid
@@ -1259,4 +1370,4 @@ def get_system_config():
     return jsonify(config)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, threaded=True)

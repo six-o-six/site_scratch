@@ -17,7 +17,7 @@
                     <li id="navAdmin"><a href="admin.html">Administração de Usuários</a></li>
                     <li id="navBancoDados"><a href="database.html">Banco de Dados</a></li>
                     <li id="navDiarioClasseProf"><a href="teacher-diary.html">Diário de Classe</a></li>
-                    <li id="navActivitiesProf"><a href="teacher-activities.html">Controle de Atividades</a></li>
+                    <li id="navActivitiesProf"><a href="teacher-activities.html">Atividades</a></li>
                     <li id="navMateriaisProf"><a href="teacher-materials.html">Materiais</a></li>
                     
                     <li class="dropdown">
@@ -83,11 +83,12 @@
         let currentAttendanceRecords = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await fetchClasses();
-            await fetchStudents();
+            await loadClasses();
+            await loadStudents();
         });
 
-        async function fetchClasses() {
+        // Renomeada para evitar conflito
+        async function loadClasses() {
             showLoading();
             try {
                 allClasses = await window.fetchClasses();
@@ -100,18 +101,8 @@
             }
         }
 
-        function populateClassSelect(classes) {
-            const selectElement = document.getElementById('classSelect');
-            selectElement.innerHTML = '<option value="">-- Selecione uma aula --</option>';
-            classes.forEach(cls => {
-                const option = document.createElement('option');
-                option.value = cls.id;
-                option.textContent = `${cls.title} (${new Date(cls.date).toLocaleDateString('pt-BR')})`;
-                selectElement.appendChild(option);
-            });
-        }
-
-        async function fetchStudents() {
+        // Renomeada para evitar conflito
+        async function loadStudents() {
             showLoading();
             try {
                 allStudents = await window.fetchStudents();
@@ -124,7 +115,7 @@
             }
         }
 
-        async function loadAttendanceForSelectedClass() {
+        async function fetchAttendanceForSelectedClass() {
             const selectedClassId = document.getElementById('classSelect').value;
             const attendanceTableBody = document.getElementById('attendanceTableBody');
             attendanceTableBody.innerHTML = '';
@@ -286,6 +277,19 @@
             })
             userAvatar.style.cursor = "pointer"
             userAvatar.title = "Clique para fazer logout"
+        }
+
+        function populateClassSelect(classes) {
+            const select = document.getElementById('classSelect');
+            if (!select) return;
+            select.innerHTML = '';
+            classes.forEach(cls => {
+                const option = document.createElement('option');
+                // Ajuste conforme a estrutura do objeto retornado pela sua API
+                option.value = cls.turma || cls.id || cls.nome || cls;
+                option.textContent = cls.turma || cls.nome || cls.id || cls;
+                select.appendChild(option);
+            });
         }
     </script>
 </body>
