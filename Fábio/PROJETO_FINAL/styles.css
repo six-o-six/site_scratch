@@ -1335,3 +1335,36 @@ body {
     color: #666;
     margin-top: 10px;
 }
+
+/* ADIÇÃO: Estilo para dropdowns em Diário de Classe */
+.attendance-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-group {
+  display: flex;
+  gap: 20px; /* Espaçamento entre os dois dropdowns */
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Remove a margem inferior padrão dos form-groups dentro deste container */
+.attendance-controls .form-group {
+    margin-bottom: 0;
+}
+
+/* Botão de salvar presença alinhado à direita abaixo da tabela */
+.save-attendance-btn-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
