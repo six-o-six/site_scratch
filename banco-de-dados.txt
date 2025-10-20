@@ -118,3 +118,52 @@ CREATE TABLE IF NOT EXISTS atividades_alunos (
     total_enviadas SMALLINT DEFAULT 0,
     FOREIGN KEY (id) REFERENCES alunos(id) ON DELETE CASCADE
 );
+
+-- 10. Inicia a inserção dos 30 novos alunos na turma '25.2 - T1'
+INSERT INTO alunos (turma, nome, email, telefone, data_nascimento, rg, cpf, endereco, escolaridade, escola, responsavel) VALUES
+('25.2 - T1', 'Ana Silva', 'ana.silva@email.com', '81910000001', '2011-02-01', '1100001', '10000000001', 'Rua das Flores, 1', '8º ano', 'Pública', 'Marcos Silva'),
+('25.2 - T1', 'Bruno Costa', 'bruno.costa@email.com', '81910000002', '2011-03-10', '1100002', '10000000002', 'Avenida Principal, 2', '9º ano', 'Pública', 'Carla Costa'),
+('25.2 - T1', 'Clara Mendes', 'clara.mendes@email.com', '81910000003', '2010-11-05', '1100003', '10000000003', 'Travessa da Escola, 3', '8º ano', 'Privada', 'Roberto Mendes'),
+('25.2 - T1', 'Daniel Moreira', 'daniel.moreira@email.com', '81910000004', '2011-01-15', '1100004', '10000000004', 'Rua Nova, 4', '8º ano', 'Pública', 'Juliana Moreira'),
+('25.2 - T1', 'Elisa Ferreira', 'elisa.ferreira@email.com', '81910000005', '2011-05-20', '1100005', '10000000005', 'Rua da Praça, 5', '9º ano', 'Pública', 'Fernando Ferreira'),
+('25.2 - T1', 'Felipe Barros', 'felipe.barros@email.com', '81910000006', '2010-12-30', '1100006', '10000000006', 'Avenida Central, 6', '8º ano', 'Privada', 'Sandra Barros'),
+('25.2 - T1', 'Gabriela Lima', 'gabriela.lima@email.com', '81910000007', '2011-04-12', '1100007', '10000000007', 'Rua do Sol, 7', '8º ano', 'Pública', 'Ricardo Lima'),
+('25.2 - T1', 'Heitor Almeida', 'heitor.almeida@email.com', '81910000008', '2011-06-07', '1100008', '10000000008', 'Rua da Lua, 8', '9º ano', 'Pública', 'Beatriz Almeida'),
+('25.2 - T1', 'Isabela Santos', 'isabela.santos@email.com', '81910000009', '2010-10-10', '1100009', '10000000009', 'Avenida Norte, 9', '8º ano', 'Pública', 'Tiago Santos'),
+('25.2 - T1', 'Jonas Pereira', 'jonas.pereira@email.com', '81910000010', '2011-07-22', '1100010', '10000000010', 'Rua Sul, 10', '8º ano', 'Privada', 'Camila Pereira'),
+('25.2 - T1', 'Karina Rocha', 'karina.rocha@email.com', '81910000011', '2011-08-01', '1100011', '10000000011', 'Rua Leste, 11', '9º ano', 'Pública', 'Lucas Rocha'),
+('25.2 - T1', 'Leonardo Gomes', 'leonardo.gomes@email.com', '81910000012', '2010-09-14', '1100012', '10000000012', 'Rua Oeste, 12', '8º ano', 'Pública', 'Patrícia Gomes'),
+('25.2 - T1', 'Manuela Dias', 'manuela.dias@email.com', '81910000013', '2011-09-03', '1100013', '10000000013', 'Avenida Beira Mar, 13', '8º ano', 'Privada', 'Rodrigo Dias'),
+('25.2 - T1', 'Nicolas Azevedo', 'nicolas.azevedo@email.com', '81910000014', '2011-10-18', '1100014', '10000000014', 'Rua da Matriz, 14', '9º ano', 'Pública', 'Fernanda Azevedo'),
+('25.2 - T1', 'Olívia Nogueira', 'olivia.nogueira@email.com', '81910000015', '2010-08-25', '1100015', '10000000015', 'Rua do Comércio, 15', '8º ano', 'Pública', 'Gustavo Nogueira'),
+('25.2 - T1', 'Pedro Henrique', 'pedro.henrique@email.com', '81910000016', '2011-11-11', '1100016', '10000000016', 'Rua da Indústria, 16', '8º ano', 'Privada', 'Sara Henrique'),
+('25.2 - T1', 'Quintino Bastos', 'quintino.bastos@email.com', '81910000017', '2011-12-01', '1100017', '10000000017', 'Avenida das Árvores, 17', '9º ano', 'Pública', 'Vitor Bastos'),
+('25.2 - T1', 'Rafaela Cunha', 'rafaela.cunha@email.com', '81910000018', '2011-01-28', '1100018', '10000000018', 'Rua das Pedras, 18', '8º ano', 'Pública', 'Vanessa Cunha'),
+('25.2 - T1', 'Samuel Vieira', 'samuel.vieira@email.com', '81910000019', '2010-07-07', '1100019', '10000000019', 'Rua da Areia, 19', '8º ano', 'Privada', 'Diego Vieira'),
+('25.2 - T1', 'Tatiana Andrade', 'tatiana.andrade@email.com', '81910000020', '2011-02-14', '1100020', '10000000020', 'Avenida do Rio, 20', '9º ano', 'Pública', 'Elaine Andrade'),
+('25.2 - T1', 'Ubiratan Medeiros', 'ubiratan.medeiros@email.com', '81910000021', '2011-03-23', '1100021', '10000000021', 'Rua da Serra, 21', '8º ano', 'Pública', 'Fábio Medeiros'),
+('25.2 - T1', 'Vitória Sampaio', 'vitoria.sampaio@email.com', '81910000022', '2010-06-19', '1100022', '10000000022', 'Rua do Vale, 22', '8º ano', 'Privada', 'Gabriela Sampaio'),
+('25.2 - T1', 'William Farias', 'william.farias@email.com', '81910000023', '2011-04-30', '1100023', '10000000023', 'Avenida da Praia, 23', '9º ano', 'Pública', 'Heitor Farias'),
+('25.2 - T1', 'Xavier Pires', 'xavier.pires@email.com', '81910000024', '2011-05-17', '1100024', '10000000024', 'Rua do Lago, 24', '8º ano', 'Pública', 'Irene Pires'),
+('25.2 - T1', 'Yasmin Correia', 'yasmin.correia@email.com', '81910000025', '2010-05-12', '1100025', '10000000025', 'Rua da Lagoa, 25', '8º ano', 'Privada', 'João Correia'),
+('25.2 - T1', 'Zilda Matos', 'zilda.matos@email.com', '81910000026', '2011-07-01', '1100026', '10000000026', 'Avenida do Mar, 26', '9º ano', 'Pública', 'Luan Matos'),
+('25.2 - T1', 'Arthur Dantas', 'arthur.dantas@email.com', '81910000027', '2011-08-16', '1100027', '10000000027', 'Rua do Cais, 27', '8º ano', 'Pública', 'Miguel Dantas'),
+('25.2 - T1', 'Bárbara Queiroz', 'barbara.queiroz@email.com', '81910000028', '2010-04-22', '1100028', '10000000028', 'Rua da Ponte, 28', '8º ano', 'Privada', 'Nicole Queiroz'),
+('25.2 - T1', 'Caio Rangel', 'caio.rangel@email.com', '81910000029', '2011-09-29', '1100029', '10000000029', 'Avenida do Forte, 29', '9º ano', 'Pública', 'Otávio Rangel')
+ON DUPLICATE KEY UPDATE nome=VALUES(nome);
+
+-- ---------------------------------------------------------------------------------
+-- ATUALIZA AS TABELAS DEPENDENTES (status_alunos e atividades_alunos)
+-- ---------------------------------------------------------------------------------
+-- (Este bloco permanece o mesmo, mas é necessário para garantir 
+-- que os novos alunos tenham entradas nas tabelas de status e atividades)
+
+-- Popula 'status_alunos' com os novos IDs (usando os valores DEFAULT)
+INSERT INTO status_alunos (id)
+SELECT id FROM alunos
+WHERE id NOT IN (SELECT id FROM status_alunos);
+
+-- Popula 'atividades_alunos' com os novos IDs (usando os valores DEFAULT)
+INSERT INTO atividades_alunos (id)
+SELECT id FROM alunos
+WHERE id NOT IN (SELECT id FROM atividades_alunos);

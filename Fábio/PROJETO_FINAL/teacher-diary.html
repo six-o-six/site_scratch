@@ -108,7 +108,7 @@
             const selectElement = document.getElementById('turmaSelect');
             const turmas = [...new Set(allStudents.map(student => student.turma))].sort();
             
-            selectElement.innerHTML = '<option value="">-- Selecione uma turma --</option>';
+            selectElement.innerHTML = '<option value="">Selecione uma turma</option>';
             turmas.forEach(turma => {
                 const option = document.createElement('option');
                 option.value = turma;
@@ -230,48 +230,65 @@
             }
         }
 
+        // Modificação de Disponibilidade: Função para salvar todas as presenças de uma vez
         async function saveAllAttendance() {
             const selectedTurma = document.getElementById('turmaSelect').value;
             if (!selectedTurma) {
+                // Usa a função global definida em script.js para mostrar mensagens
                 showGlobalMessageModal('Atenção', 'Por favor, selecione uma turma antes de salvar.');
                 return;
             }
 
-            const updates = [];
+            // 1. Agrupar todos os dados de presença em um único array.
+            const attendanceDataBatch = [];
             document.querySelectorAll('#fullAttendanceTableBody .attendance-status-select').forEach(select => {
-                updates.push({
+                attendanceDataBatch.push({
                     student_id: parseInt(select.dataset.studentId),
                     class_id: parseInt(select.dataset.classId),
                     attendance_status: select.value
                 });
             });
 
-            if (updates.length === 0) {
+            if (attendanceDataBatch.length === 0) {
                 showGlobalMessageModal('Informação', 'Nenhuma presença para salvar.');
                 return;
             }
 
+            // Usa a função global definida em script.js para mostrar o loading
             showLoading();
-            const promises = updates.map(update => window.saveAttendanceRecords(update));
-            
             try {
-                const results = await Promise.all(promises);
-                const errors = results.filter(res => !res.success);
+                // 2. Enviar o array completo em UMA ÚNICA requisição para o novo endpoint de lote.
+                // Certifique-se que API_BASE_URL está definida (geralmente em script.js ou no início do script da página).
+                const response = await fetch(`${API_BASE_URL}/attendance/batch-update`, { // Novo endpoint
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(attendanceDataBatch) // Envia o array inteiro
+                });
 
-                if (errors.length === 0) {
-                    showGlobalMessageModal('Sucesso', `Presença salva para ${results.length} registros.`);
-                    // Recarrega os dados de presença do backend
-                    allAttendance = await window.fetchAttendanceRecords();
-                    // Redesenha apenas o corpo da tabela para manter o cabeçalho
+                const data = await response.json(); // Espera a resposta do backend
+
+                if (response.ok && data.success) {
+                    showGlobalMessageModal('Sucesso', `Presença para a turma inteira salva com sucesso! (${data.message})`);
+
+                    // Recarrega os dados de presença do backend APÓS salvar com sucesso
+                    allAttendance = await window.fetchAttendanceRecords(); // Usa a função fetch global
+
+                    // Redesenha apenas o corpo da tabela para manter o cabeçalho e refletir os dados salvos
+                    // Assumindo que 'allClasses' já está carregado e filtrado corretamente
                     const completedClasses = allClasses.filter(cls => cls.status === 'completed');
-                    buildTableBody(completedClasses);
+                    buildTableBody(completedClasses); // Redesenha a tabela com os dados atualizados
+
                 } else {
-                    showGlobalMessageModal('Atenção', `Presença salva com ${errors.length} erros. Verifique o console.`);
+                    // A mensagem de erro agora é mais confiável, pois a operação inteira falhou atomicamente.
+                    showGlobalMessageModal('Erro ao Salvar', `Não foi possível salvar os registros de presença. Tente novamente. Detalhes: ${data.message || 'Erro desconhecido.'}`);
                 }
             } catch (error) {
-                console.error("Erro ao salvar múltiplas presenças:", error);
-                showGlobalMessageModal('Erro Crítico', 'Ocorreu um erro de rede ao salvar os dados.');
+                console.error("Erro de rede ao salvar presenças em lote:", error);
+                showGlobalMessageModal('Erro Crítico', 'Ocorreu um erro de rede ou de servidor ao salvar os dados. Verifique sua conexão e tente novamente.');
             } finally {
+                // Usa a função global definida em script.js para esconder o loading
                 hideLoading();
             }
         }

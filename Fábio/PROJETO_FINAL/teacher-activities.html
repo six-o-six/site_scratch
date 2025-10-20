@@ -10,14 +10,14 @@
     <div class="main-layout">
         <header class="header">
             <div class="logo">
-                <img src=img/scratch.png height=150 width=150 alt="Scratch Logo" id="scratch-logo">
+                <img src="img/scratch.png" height="50" width="50" alt="Scratch Logo" id="scratch-logo">
             </div>
             <nav>
                 <ul class="nav-menu">
                     <li id="navAdmin"><a href="admin.html">Administração de Usuários</a></li>
                     <li id="navBancoDados"><a href="database.html">Banco de Dados</a></li>
                     <li id="navDiarioClasseProf"><a href="teacher-diary.html">Diário de Classe</a></li>
-                    <li id="navActivitiesProf"><a href="teacher-activities.html">Atividades</a></li>
+                    <li id="navActivitiesProf"><a href="teacher-activities.html" class="active">Atividades</a></li>
                     <li id="navMateriaisProf"><a href="teacher-materials.html">Materiais</a></li>
                     
                     <li class="dropdown">
@@ -43,7 +43,7 @@
                 </ul>
             </nav>
             <div class="user-profile">
-                <div class="user-avatar"><img src=img/icon-user.png height= 40px width= 40px alt="Icone do Perfil"></div>
+                <div class="user-avatar"><img src="img/icon-user.png" height="40" width="40" alt="Icone do Perfil"></div>
             </div>
         </header>
         
@@ -51,87 +51,69 @@
             <h1 class="page-title">📝 Controle de Atividades</h1>
             
             <div class="attendance-controls">
-                <div class="form-group">
-                    <label for="classSelect">Selecionar Turma:</label>
-                    <select id="classSelect" onchange="loadStudentsForSelectedClass()">
-                        <option value="">-- Selecione uma turma --</option>
-                    </select>
+                <div class="dropdown-group">
+                    <div class="form-group">
+                        <label for="turmaSelect">Selecione a Turma:</label>
+                        <select id="turmaSelect" onchange="handleTurmaChange()">
+                            <option value="">-- Carregando turmas... --</option>
+                        </select>
+                    </div>
                 </div>
-                <button class="action-btn primary" onclick="saveActivities()">Salvar Atividades</button>
             </div>
 
-            <div class="attendance-table-container">
+            <div class="attendance-table-container" style="overflow-x: auto;">
                 <h2>Status das Atividades</h2>
                 <table class="database-table">
-                    <thead>
-                        <tr>
-                            <th>ID do Aluno</th>
-                            <th>Nome do Aluno</th>
-                            <th>Atividade 1</th>
-                            <th>Atividade 2</th>
-                            <th>Atividade 3</th>
-                            <th>Atividade 4</th>
-                            <th>Atividade 5</th>
-                            <th>Atividade 6</th>
-                            <th>Atividade 7</th>
-                            <th>Total Entregue</th>
-                        </tr>
-                    </thead>
+                    <thead id="activitiesTableHeader">
+                        </thead>
                     <tbody id="activitiesTableBody">
-                        </tbody>
+                        <tr>
+                            <td colspan="12" style="text-align: center; padding: 20px;">Selecione uma turma para exibir o status das atividades.</td>
+                        </tr>
+                    </tbody>
                 </table>
+            </div>
+            <div class="save-attendance-btn-container">
+                 <button class="action-btn primary" onclick="saveAllActivities()">Salvar Alterações</button>
             </div>
         </main>
     </div>
     <script src="script.js"></script>
+
     <script>
         let allStudents = [];
         let allActivities = [];
-        let allClasses = [];
         let config = {};
+        let studentsInSelectedTurma = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await fetchAllData();
-            populateClassSelect();
-        });
-
-        async function fetchAllData() {
             showLoading();
             try {
-                // Buscando a configuração do sistema e os dados da API
-                const [studentsResponse, activitiesResponse, classesResponse, configResponse] = await Promise.all([
+                // Carrega todos os dados necessários em paralelo
+                [allStudents, allActivities, config] = await Promise.all([
                     window.fetchStudents(),
                     window.fetchStudentActivities(),
-                    window.fetchClasses(),
                     window.fetchSystemConfig()
                 ]);
-                
-                allStudents = studentsResponse;
-                allActivities = activitiesResponse;
-                allClasses = classesResponse;
-                config = configResponse;
-                
-                console.log('allStudents:', allStudents); // LOG DE DEPURAÇÃO
-                renderActivityTableHeaders();
-
+                populateTurmaSelect();
             } catch (error) {
-                console.error('Erro ao buscar dados:', error);
-                showGlobalMessageModal('Erro', 'Não foi possível carregar os dados de alunos e atividades.');
+                console.error('Erro ao carregar dados iniciais de atividades:', error);
+                showGlobalMessageModal('Erro Crítico', 'Não foi possível carregar os dados de atividades. Tente recarregar a página.');
             } finally {
                 hideLoading();
             }
-        }
+        });
 
-        function renderActivityTableHeaders() {
-            const headerRow = document.querySelector('.database-table thead tr');
-            document.querySelectorAll('.activity-header').forEach(el => el.remove());
-        }
-
-        function populateClassSelect() {
-            const selectElement = document.getElementById('classSelect');
+        function populateTurmaSelect() {
+            const selectElement = document.getElementById('turmaSelect');
+            if (!allStudents || allStudents.length === 0) {
+                selectElement.innerHTML = '<option value="">Nenhum aluno encontrado</option>';
+                return;
+            }
+            const turmas = [...new Set(allStudents.map(student => student.turma))].sort();
+            
             selectElement.innerHTML = '<option value="">-- Selecione uma turma --</option>';
-            const allowedTurmas = ['25.1 - T1', '25.1 - T2', '25.2 - T1'];
-            allowedTurmas.forEach(turma => {
+            turmas.forEach(turma => {
                 const option = document.createElement('option');
                 option.value = turma;
                 option.textContent = turma;
@@ -139,143 +121,149 @@
             });
         }
 
-        function loadStudentsForSelectedClass() {
-            const selectedTurma = document.getElementById('classSelect').value;
-            const activitiesTableBody = document.getElementById('activitiesTableBody');
-            activitiesTableBody.innerHTML = '';
+        function handleTurmaChange() {
+            const selectedTurma = document.getElementById('turmaSelect').value;
+            const tableHeader = document.getElementById('activitiesTableHeader');
+            const tableBody = document.getElementById('activitiesTableBody');
 
             if (!selectedTurma) {
+                tableHeader.innerHTML = '';
+                tableBody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 20px;">Selecione uma turma para exibir o status das atividades.</td></tr>';
                 return;
             }
 
-            const studentsInClass = allStudents.filter(student => student.turma === selectedTurma);
+            studentsInSelectedTurma = allStudents
+                .filter(student => student.turma === selectedTurma)
+                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
-            if (studentsInClass.length === 0) {
-                activitiesTableBody.innerHTML = `<tr><td colspan="${3 + config.numberOfActivities}" style="text-align: center;">Nenhum aluno encontrado para esta turma.</td></tr>`;
+            buildActivitiesTableHeader();
+            buildActivitiesTableBody();
+        }
+
+        function buildActivitiesTableHeader() {
+            const tableHeader = document.getElementById('activitiesTableHeader');
+            let headerHtml = `<tr><th class="name-header">Nome do Aluno</th>`;
+
+            for (let i = 1; i <= (config.numberOfActivities || 10); i++) {
+                headerHtml += `<th>Atividade ${i}</th>`;
+            }
+
+            headerHtml += `<th class="total-entregues-cell">Total Entregues</th></tr>`;
+            tableHeader.innerHTML = headerHtml;
+        }
+
+        function buildActivitiesTableBody() {
+            const tableBody = document.getElementById('activitiesTableBody');
+            tableBody.innerHTML = '';
+            const numberOfActivities = config.numberOfActivities || 10;
+            const colspan = numberOfActivities + 2;
+
+            if (studentsInSelectedTurma.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Nenhum aluno encontrado nesta turma.</td></tr>`;
                 return;
             }
 
-            studentsInClass.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
-
-            studentsInClass.forEach(student => {
+            studentsInSelectedTurma.forEach(student => {
                 const row = document.createElement('tr');
+                let rowHtml = `<td class="student-name">${student.nome}</td>`;
                 const studentActivities = allActivities.find(act => act.id === student.id);
                 
-                let activityCellsHtml = '';
-                for (let i = 1; i <= config.numberOfActivities; i++) {
-                    const aulaNum = i;
-                    const status = studentActivities ? studentActivities[`aula_${aulaNum}`] : 'Pendente';
-                    activityCellsHtml += `
-                        <td>
-                            <select class="activity-status-select" data-student-id="${student.id}" data-aula-num="${aulaNum}">
+                for (let i = 1; i <= numberOfActivities; i++) {
+                    const aulaKey = `aula_${i}`;
+                    const status = studentActivities ? (studentActivities[aulaKey] || 'Pendente') : 'Pendente';
+                    
+                    rowHtml += `
+                        <td class="activity-status-cell ${getStatusClass(status)}">
+                            <select class="activity-status-select" data-student-id="${student.id}" data-aula-col="${aulaKey}">
                                 <option value="Pendente" ${status === 'Pendente' ? 'selected' : ''}>Pendente</option>
                                 <option value="Enviada" ${status === 'Enviada' ? 'selected' : ''}>Enviada</option>
+                                <option value="Verificada" ${status === 'Verificada' ? 'selected' : ''}>Verificada</option>
                             </select>
                         </td>
                     `;
                 }
-
-                row.innerHTML = `
-                    <td>${student.id}</td>
-                    <td>${student.nome}</td>
-                    <td class="total-enviadas">${studentActivities ? studentActivities.total_enviadas : 0}</td>
-                    ${activityCellsHtml}
-                `;
-                activitiesTableBody.appendChild(row);
+                
+                rowHtml += `<td class="total-entregues-cell">${studentActivities ? (studentActivities.total_enviadas || 0) : 0}</td>`;
+                row.innerHTML = rowHtml;
+                tableBody.appendChild(row);
             });
         }
+        
+        function getStatusClass(status) {
+            switch (status) {
+                case 'Enviada': return 'submitted';
+                case 'Verificada': return 'verified';
+                case 'Pendente': return 'pending';
+                default: return '';
+            }
+        }
 
-        async function saveActivities() {
-            const selectedTurma = document.getElementById('classSelect').value;
+        async function saveAllActivities() {
+            const selectedTurma = document.getElementById('turmaSelect').value;
             if (!selectedTurma) {
-                showGlobalMessageModal('Atenção', 'Por favor, selecione uma turma antes de salvar.');
+                showGlobalMessageModal('Atenção', 'Selecione uma turma antes de salvar.');
                 return;
             }
 
             const updates = [];
-            const selectElements = document.querySelectorAll('#activitiesTableBody .activity-status-select');
-            
-            selectElements.forEach(select => {
-                const studentId = select.dataset.studentId;
-                const aulaNum = select.dataset.aulaNum;
-                const newStatus = select.value;
-
+            document.querySelectorAll('#activitiesTableBody .activity-status-select').forEach(select => {
                 updates.push({
-                    aluno_id: parseInt(studentId),
-                    aula_col: `aula_${aulaNum}`,
-                    new_status: newStatus
+                    aluno_id: parseInt(select.dataset.studentId),
+                    aula_col: select.dataset.aulaCol,
+                    new_status: select.value
                 });
             });
 
-            showLoading();
-            let successCount = 0;
-            let errorCount = 0;
-
-            for (const update of updates) {
-                try {
-                    const response = await window.updateActivityStatus(update.aluno_id, {
-                        aula_col: update.aula_col,
-                        new_status: update.new_status
-                    });
-
-                    if (response.success) {
-                        successCount++;
-                    } else {
-                        errorCount++;
-                        console.error(`Erro ao salvar atividade para o aluno ${update.aluno_id}: ${response.message}`);
-                    }
-                } catch (error) {
-                    errorCount++;
-                    console.error(`Erro de rede/servidor ao salvar atividade para o aluno ${update.aluno_id}:`, error);
-                }
+            if (updates.length === 0) {
+                showGlobalMessageModal('Informação', 'Nenhuma atividade para salvar.');
+                return;
             }
-            hideLoading();
             
-            await fetchAllData();
-            loadStudentsForSelectedClass();
-            
-            if (errorCount === 0) {
-                showGlobalMessageModal('Sucesso', `Atividades salvas para todos os alunos na turma ${selectedTurma}.`);
-            } else {
-                showGlobalMessageModal('Atenção', `Atividades salvas com ${errorCount} erros. Verifique o console para detalhes.`);
+            showLoading();
+            const promises = updates.map(update => window.updateActivityStatus(update.aluno_id, {
+                aula_col: update.aula_col,
+                new_status: update.new_status
+            }));
+
+            try {
+                const results = await Promise.all(promises);
+                const errors = results.filter(res => !res.success);
+
+                if (errors.length === 0) {
+                    showGlobalMessageModal('Sucesso', `Atividades salvas com sucesso para a turma!`);
+                    allActivities = await window.fetchStudentActivities();
+                    buildActivitiesTableBody();
+                } else {
+                    showGlobalMessageModal('Atenção', `Atividades salvas com ${errors.length} erros. Verifique o console.`);
+                }
+            } catch (error) {
+                console.error("Erro ao salvar múltiplas atividades:", error);
+                showGlobalMessageModal('Erro Crítico', 'Ocorreu um erro de rede ao salvar os dados.');
+            } finally {
+                hideLoading();
             }
         }
-
+        
         function abrirWhatsApp() {
-            const whatsappLink = "https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c";
-            window.open(whatsappLink, '_blank');
+            window.open("https://chat.whatsapp.com/GHZuEpQhb5uGFROPWioy9o?mode=ac_c", '_blank');
         }
 
         async function logout() {
             const userId = localStorage.getItem("userId");
             if (userId) {
-                try {
-                    await fetch(`http://127.0.0.1:5000/logout/${userId}`, {
-                        method: 'POST',
-                    });
-                    console.log('Status online atualizado para offline.');
-                } catch (error) {
-                    console.error('Erro ao atualizar status de logout:', error);
-                }
+                await fetch(`http://127.0.0.1:5000/logout/${userId}`, { method: 'POST' }).catch(console.error);
             }
-            localStorage.removeItem("isLoggedIn");
-            localStorage.removeItem("userId");
-            localStorage.removeItem("username");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("userName");
-            localStorage.removeItem("userStudentId");
+            localStorage.clear();
             window.location.href = "index.html";
         }
 
-        const userAvatar = document.querySelector(".user-avatar")
+        const userAvatar = document.querySelector(".user-avatar");
         if (userAvatar) {
             userAvatar.addEventListener("click", () => {
-                if (confirm("Deseja fazer logout?")) {
-                    logout()
-                }
-            })
-            userAvatar.style.cursor = "pointer"
-            userAvatar.title = "Clique para fazer logout"
+                if (confirm("Deseja fazer logout?")) logout();
+            });
+            userAvatar.style.cursor = "pointer";
+            userAvatar.title = "Clique para fazer logout";
         }
     </script>
 </body>

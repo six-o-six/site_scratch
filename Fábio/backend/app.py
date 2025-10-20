@@ -1259,5 +1259,67 @@ def get_system_config():
     }
     return jsonify(config)
 
+# ====================================================================================================
+# DISPONIBILIDADE: ROTA PARA ATUALIZAÇÃO EM LOTE DE REGISTROS DE FREQUÊNCIA COM OBSERVER
+# ====================================================================================================
+
+@app.route('/attendance/batch-update', methods=['POST'])
+def batch_update_attendance():
+    records = request.get_json()
+    if not isinstance(records, list) or not records:
+        return jsonify({'success': False, 'message': 'Payload inválido. Esperado um array de registros.'}), 400
+
+    connection = create_db_connection()
+    if not connection:
+        return db_connection_error_response()
+
+    cursor = connection.cursor()
+    student_ids_to_update = set() # Usar um set para evitar duplicatas
+
+    try:
+        # 1. Iniciar a transação
+        connection.start_transaction()
+
+        # 2. Iterar sobre todos os registros e executar as escritas
+        for record in records:
+            student_id = record.get('student_id')
+            class_id = record.get('class_id')
+            status = record.get('attendance_status')
+
+            if not all([student_id, class_id, status]):
+                raise ValueError(f"Registro inválido encontrado: {record}")
+
+            # Usar INSERT ... ON DUPLICATE KEY UPDATE para ser eficiente
+            query = """
+                INSERT INTO attendance_records (student_id, class_id, attendance_status)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE attendance_status = VALUES(attendance_status)
+            """
+            cursor.execute(query, (student_id, class_id, status))
+            
+            # Adicionar o ID do aluno ao set para posterior atualização de status
+            student_ids_to_update.add(student_id)
+
+        # 3. Notificar o Observer para cada aluno afetado APÓS todas as escritas
+        for student_id in student_ids_to_update:
+            attendance_subject.notify(student_id)
+        
+        # 4. Se tudo deu certo, confirmar a transação
+        connection.commit()
+        
+        return jsonify({'success': True, 'message': f'{len(records)} registros de presença salvos com sucesso.'}), 200
+
+    except (Error, ValueError) as e:
+        # 5. Se qualquer erro ocorrer, reverter TODA a transação
+        print(f"ERRO NA TRANSAÇÃO DE LOTE: {e}")
+        connection.rollback()
+        return jsonify({'success': False, 'message': f'Erro ao salvar registros em lote: {e}'}), 500
+        
+    finally:
+        # 6. Fechar a conexão
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
