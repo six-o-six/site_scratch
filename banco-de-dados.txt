@@ -167,3 +167,6 @@ WHERE id NOT IN (SELECT id FROM status_alunos);
 INSERT INTO atividades_alunos (id)
 SELECT id FROM alunos
 WHERE id NOT IN (SELECT id FROM atividades_alunos);
+
+-- Adicionar coluna à tabela users
+ALTER TABLE users ADD COLUMN failed_login_attempts SMALLINT DEFAULT 0;

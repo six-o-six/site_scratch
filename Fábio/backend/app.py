@@ -6,6 +6,7 @@ import os
 import random
 import string
 import time
+import re # ADIÇÃO: Para validação de input
 from werkzeug.utils import secure_filename
 
 # CORREÇÃO AQUI: static_folder deve apontar para o nome real da sua pasta de frontend
@@ -116,6 +117,52 @@ def create_db_connection():
         connection = None
     return connection
 
+# --- INÍCIO TÁTICA: AUTHORIZE ACTORS ---
+def get_requesting_user_role():
+    """Simula a extração da role a partir de um mecanismo de autenticação/sessão.
+    Para o projeto, simula-se a role usando o header 'X-Auth-Role' para o teste de autorização."""
+    if request.headers.get('X-Auth-Role') == 'teacher':
+        return 'teacher'
+    return 'student' # Padrão para requisições sem o header (não autorizadas)
+
+def authorize_teacher_access():
+    """Verifica se o ator tem permissão de professor."""
+    if get_requesting_user_role() != 'teacher':
+        print(f"AUTORIZAÇÃO NEGADA: Acesso de não-professor na rota {request.path}")
+        return jsonify({'success': False, 'message': 'Acesso negado. Apenas professores têm permissão para esta ação.'}), 403
+    return None # Permissão concedida
+# --- FIM TÁTICA: AUTHORIZE ACTORS ---
+
+# --- INÍCIO TÁTICA: VALIDATE INPUT (REFORÇO NO BACKEND) ---
+def validate_aluno_data(data):
+    """Valida as regras de negócio dos dados do aluno no backend."""
+    
+    # Validação de nome e responsável (máx 70, sem números/símbolos)
+    if 'nome' in data and (len(data.get('nome', '')) > 70 or re.search(r'[0-9!@#$%^&*()+\-=\[\]{};\':"\\|,.<>\/?]+', data.get('nome', ''))):
+        return False, 'Nome inválido ou excede o limite de 70 caracteres.'
+    
+    if 'responsavel' in data and (len(data.get('responsavel', '')) > 70 or re.search(r'[0-9!@#$%^&*()+\-=\[\]{};\':"\\|,.<>\/?]+', data.get('responsavel', ''))):
+        return False, 'Nome do Responsável inválido ou excede o limite de 70 caracteres.'
+        
+    # Validação de CPF (11 dígitos, apenas números, se fornecido e não vazio)
+    if 'cpf' in data and data['cpf'] and not re.fullmatch(r'\d{11}', data.get('cpf', '')):
+        return False, 'CPF inválido. Deve conter 11 dígitos numéricos.'
+
+    # Validação de RG (7-9 dígitos, apenas números, se fornecido e não vazio)
+    if 'rg' in data and data['rg'] and not re.fullmatch(r'\d{7,9}', data.get('rg', '')):
+        return False, 'RG inválido. Deve conter entre 7 e 9 dígitos numéricos.'
+        
+    # Validação de Telefone (máx 11 dígitos, apenas números, se fornecido e não vazio)
+    if 'telefone' in data and data['telefone'] and not re.fullmatch(r'\d{0,11}', data.get('telefone', '')):
+        return False, 'Telefone inválido. Deve conter no máximo 11 dígitos numéricos.'
+        
+    # Validação de Email (formato básico e max 50, se fornecido e não vazio)
+    if 'email' in data and data['email'] and (len(data.get('email', '')) > 50 or not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', data.get('email', ''))):
+        return False, 'Email inválido ou excede o limite de 50 caracteres.'
+
+    return True, ''
+# --- FIM TÁTICA: VALIDATE INPUT (REFORÇO NO BACKEND) ---
+
 allowed_turmas = [
     '25.1 - T1',
     '25.1 - T2',
@@ -161,8 +208,6 @@ def serve_static_files(filename):
 @app.route('/alunos')
 def get_alunos():
     connection = create_db_connection()
-    if not connection:
-        return db_connection_error_response()
     alunos = []
     try:
         cursor = connection.cursor(dictionary=True)
@@ -203,32 +248,35 @@ def get_aluno_by_id(aluno_id):
             connection.close()
     return jsonify({'message': 'Erro de conexão com o banco de dados'}), 500
 
-# MODIFICAÇÃO: Rota para adicionar um novo aluno (agora com inserções em outras tabelas)
+# MODIFICAÇÃO: Rota para adicionar um novo aluno (agora com Autorização e Validação)
 @app.route('/alunos/add', methods=['POST'])
 def add_aluno():
     if request.method == 'POST':
+        
+        # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+        auth_response = authorize_teacher_access()
+        if auth_response:
+            return auth_response
+        # ---------------------------------------------------
+        
         aluno_data = request.get_json()
 
-        # ADIÇÃO DE LOG: Imprime os dados recebidos para adicionar aluno
-        print(f"Dados recebidos para adicionar aluno: {aluno_data}")
-
         if not aluno_data or not aluno_data.get('nome') or not aluno_data.get('turma'):
-            print("Erro: Nome e Turma são obrigatórios.") # LOG
             return jsonify({'success': False, 'message': 'Nome e Turma são obrigatórios'}), 400
 
-        # ADIÇÃO: Validação para a coluna 'turma'
         if aluno_data.get('turma') not in allowed_turmas:
-            print(f"Erro: Turma inválida - {aluno_data.get('turma')}") # LOG
             return jsonify({'success': False, 'message': 'Turma inválida. Opções válidas: 25.1 - T1, 25.1 - T2, 25.2 - T1.'}), 400
 
-        # ADIÇÃO: Validações para outros campos, conforme condições
         if not aluno_data.get('cpf'):
-            print("Erro: CPF é obrigatório.") # LOG
             return jsonify({'success': False, 'message': 'CPF é obrigatório.'}), 400
         if not aluno_data.get('responsavel'):
-            print("Erro: Responsável é obrigatório.") # LOG
             return jsonify({'success': False, 'message': 'Responsável é obrigatório.'}), 400
-        # Você pode adicionar mais validações aqui para outros campos como email, telefone, rg, nome, etc.
+
+        # 💥 TÁTICA VALIDATE INPUT: Validação de dados no Backend
+        is_valid, error_msg = validate_aluno_data(aluno_data)
+        if not is_valid:
+            return jsonify({'success': False, 'message': f'Erro de validação: {error_msg}'}), 400
+        # -----------------------------------------------------
 
         connection = create_db_connection()
         if connection:
@@ -253,10 +301,8 @@ def add_aluno():
                     aluno_data.get('escola'),
                     aluno_data.get('responsavel')
                 )
-                print(f"Executando query_alunos: {query_alunos} com valores: {values_alunos}") # LOG
                 cursor.execute(query_alunos, values_alunos)
                 aluno_id = cursor.lastrowid # Pega o ID gerado para o novo aluno
-                print(f"Aluno inserido com ID: {aluno_id}") # LOG
 
                 # 2. Inserir na tabela 'users' (para login_alunos)
                 aluno_full_name = aluno_data.get('nome')
@@ -269,9 +315,7 @@ def add_aluno():
                 VALUES (%s, %s, %s, %s, %s)
                 """
                 values_users = (generated_username, hashed_password, aluno_full_name, 'student', aluno_id)
-                print(f"Executando query_users: {query_users} com valores: {values_users}") # LOG
                 cursor.execute(query_users, values_users)
-                print(f"Usuário de login inserido: {generated_username}") # LOG
 
                 # 3. Inserir na tabela 'status_alunos'
                 query_status = """
@@ -279,9 +323,7 @@ def add_aluno():
                 VALUES (%s, %s, %s)
                 """
                 values_status = (aluno_id, 0, 'Ativo')
-                print(f"Executando query_status: {query_status} com valores: {values_status}") # LOG
                 cursor.execute(query_status, values_status)
-                print("Status do aluno inserido.") # LOG
 
                 # 4. Inserir na tabela 'atividades_alunos'
                 query_atividades = """
@@ -289,9 +331,7 @@ def add_aluno():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 values_atividades = (aluno_id, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 0)
-                print(f"Executando query_atividades: {query_atividades} com valores: {values_atividades}") # LOG
                 cursor.execute(query_atividades, values_atividades)
-                print("Atividades do aluno inseridas.") # LOG
 
                 connection.commit()
                 cursor.close()
@@ -305,23 +345,24 @@ def add_aluno():
                 }), 201
 
             except Error as e:
-                print(f"Erro MySQL ao adicionar aluno e dados relacionados: {e}") # LOG DETALHADO DO ERRO
                 connection.rollback()
-                # Verificar se o erro é de chave duplicada (por exemplo, email, CPF, RG, telefone)
                 if e.errno == 1062: # MySQL error code for Duplicate entry
-                    # ADIÇÃO DE LOG: Qual campo pode estar duplicado
-                    print(f"Erro de duplicidade detectado: {e.msg}")
                     return jsonify({'success': False, 'message': f'Erro: Um registro com dados duplicados (email, CPF, RG ou telefone) já existe. Detalhes: {e.msg}'}), 409
                 return jsonify({'success': False, 'message': 'Erro interno do servidor'}), 500
             finally:
                 if connection and connection.is_connected():
                     connection.close()
-                    print("Conexão com o banco de dados fechada.") # LOG
-        print("Erro: Conexão com o banco de dados não estabelecida.") # LOG
         return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados'}), 500
 
 @app.route('/alunos/delete/<int:aluno_id>', methods=['DELETE'])
 def delete_aluno(aluno_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     connection = create_db_connection()
     if connection:
         try:
@@ -347,16 +388,28 @@ def delete_aluno(aluno_id):
 @app.route('/alunos/edit/<int:aluno_id>', methods=['PUT'])
 def edit_aluno(aluno_id):
     if request.method == 'PUT':
+        
+        # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+        auth_response = authorize_teacher_access()
+        if auth_response:
+            return auth_response
+        # ---------------------------------------------------
+        
         aluno_data = request.get_json()
 
-        if not aluno_data or not aluno_data.get('nome') or not aluno_id:
-            return jsonify({'success': False, 'message': 'ID do aluno e Nome são obrigatórios'}), 400
+        if not aluno_data or not aluno_id:
+            return jsonify({'success': False, 'message': 'ID do aluno e dados são obrigatórios'}), 400
 
         # ADIÇÃO: Validação para a coluna 'turma' se estiver sendo atualizada
         if 'turma' in aluno_data:
             if aluno_data['turma'] not in allowed_turmas:
                 return jsonify({'success': False, 'message': 'Turma inválida. Opções válidas: 25.1 - T1, 25.1 - T2, 25.2 - T1.'}), 400
-        # ADIÇÃO: Adicione validações para outros campos que podem ser únicos ou ter regras de formato
+        
+        # 💥 TÁTICA VALIDATE INPUT: Validação de dados no Backend
+        is_valid, error_msg = validate_aluno_data(aluno_data)
+        if not is_valid:
+            return jsonify({'success': False, 'message': f'Erro de validação: {error_msg}'}), 400
+        # -----------------------------------------------------
 
         connection = create_db_connection()
         if connection:
@@ -457,37 +510,34 @@ def get_user_by_id(user_id):
 
 @app.route('/users/add', methods=['POST'])
 def add_user():
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     user_data = request.get_json()
     username = user_data.get('username')
     password = user_data.get('password')
     full_name = user_data.get('full_name')
     role = user_data.get('role')
-    student_id_raw = user_data.get('student_id') # Pega o valor bruto do frontend
-
-    # ADIÇÃO DE LOG: Imprime os dados recebidos para adicionar usuário
-    print(f"Dados recebidos para adicionar usuário: {user_data}")
+    student_id_raw = user_data.get('student_id')
 
     if not username or not password or not role:
-        print("Erro: Username, Password e Role são obrigatórios.") # LOG
         return jsonify({'success': False, 'message': 'Username, Password e Role são obrigatórios!'}), 400
 
-    # ADIÇÃO: Validação de role (apenas student ou teacher)
     allowed_roles = ['student', 'teacher']
     if role not in allowed_roles:
-        print(f"Erro: Role inválida - {role}") # LOG
         return jsonify({'success': False, 'message': 'Role inválida. Opções válidas: student, teacher.'}), 400
 
-    # CORREÇÃO: Trata student_id para garantir que seja None ou um inteiro
-    student_id = None # Inicializa como None
+    student_id = None
     if role == 'student':
-        if student_id_raw: # Se o valor não for vazio
+        if student_id_raw:
             try:
                 student_id = int(student_id_raw)
             except ValueError:
-                print(f"Erro: student_id '{student_id_raw}' não é um número válido para o perfil de aluno.")
                 return jsonify({'success': False, 'message': 'Para o perfil de Aluno, o ID de Aluno deve ser um número válido.'}), 400
-        # Se student_id_raw for vazio ('' ou None), student_id permanece None, o que é correto.
-    # Se o role for 'teacher', student_id permanece None, o que também é correto.
 
     hashed_password = generate_password_hash(password)
 
@@ -500,32 +550,31 @@ def add_user():
             VALUES (%s, %s, %s, %s, %s)
             """
             values = (username, hashed_password, full_name, role, student_id)
-            print(f"Executando query_users: {query} com valores: {values}") # LOG
             cursor.execute(query, values)
             connection.commit()
             cursor.close()
-            print("Usuário adicionado com sucesso.") # LOG
             return jsonify({'success': True, 'message': 'Usuário adicionado com sucesso!'}), 201
         except Error as e:
-            print(f"Erro MySQL ao adicionar usuário: {e}") # LOG DETALHADO DO ERRO
             connection.rollback()
-            if e.errno == 1062: # MySQL error code for Duplicate entry
-                # ADIÇÃO DE LOG: Qual campo pode estar duplicado
-                print(f"Erro de duplicidade detectado: {e.msg}")
-                return jsonify({'success': False, 'message': f'Erro: Nome de usuário "{username}" já existe.'}), 409
+            if e.errno == 1062:
+                msg = f'Erro: Nome de usuário "{username}" já existe.' if username else 'Erro: Um registro com dados duplicados já existe.'
+                return jsonify({'success': False, 'message': msg}), 409
             return jsonify({'success': False, 'message': 'Erro interno do servidor ou usuário já existe.'}), 500
         finally:
             if connection and connection.is_connected():
                 connection.close()
-                print("Conexão com o banco de dados fechada.") # LOG
-        print("Erro: Conexão com o banco de dados não estabelecida.") # LOG
         return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados'}), 500
 
 @app.route('/users/edit/<int:user_id>', methods=['PUT'])
 def edit_user(user_id):
-    user_data = request.get_json()
     
-    # CORREÇÃO: Inicializa username aqui para garantir que esteja sempre definido
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
+    user_data = request.get_json()
     username = user_data.get('username')
     
     connection = create_db_connection()
@@ -542,25 +591,22 @@ def edit_user(user_id):
                 set_clauses.append("full_name = %s")
                 values.append(user_data['full_name'])
             if 'role' in user_data:
-                # ADIÇÃO: Validação de role ao editar
                 allowed_roles = ['student', 'teacher']
                 if user_data.get('role') not in allowed_roles:
                     return jsonify({'success': False, 'message': 'Role inválida. Opções válidas: student, teacher.'}), 400
                 set_clauses.append("role = %s")
                 values.append(user_data['role'])
             if 'student_id' in user_data:
-                # CORREÇÃO: Trata student_id para garantir que seja None ou um inteiro na edição
                 edit_student_id_raw = user_data.get('student_id')
                 edit_student_id = None
-                if user_data.get('role') == 'student': # Apenas tenta converter se o perfil for aluno
+                if user_data.get('role') == 'student':
                     if edit_student_id_raw:
                         try:
                             edit_student_id = int(edit_student_id_raw)
                         except ValueError:
-                            print(f"Erro: student_id '{edit_student_id_raw}' não é um número válido na edição.")
                             return jsonify({'success': False, 'message': 'Para o perfil de Aluno, o ID de Aluno deve ser um número válido.'}), 400
                 set_clauses.append("student_id = %s")
-                values.append(edit_student_id) # Usa o valor tratado
+                values.append(edit_student_id)
             if 'last_login' in user_data:
                 set_clauses.append("last_login = %s")
                 values.append(user_data['last_login'])
@@ -591,8 +637,7 @@ def edit_user(user_id):
         except Error as e:
             print(f"Erro ao atualizar usuário: {e}")
             connection.rollback()
-            if e.errno == 1062: # MySQL error code for Duplicate entry
-                # CORREÇÃO: Verifica se username está definido antes de usá-lo na mensagem
+            if e.errno == 1062:
                 msg = f'Erro: Nome de usuário "{username}" já existe.' if username else 'Erro: Um registro com dados duplicados já existe.'
                 return jsonify({'success': False, 'message': msg}), 409
             return jsonify({'success': False, 'message': 'Erro interno do servidor'}), 500
@@ -603,6 +648,13 @@ def edit_user(user_id):
 
 @app.route('/users/delete/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     connection = create_db_connection()
     if connection:
         try:
@@ -623,7 +675,7 @@ def delete_user(user_id):
             connection.close()
     return jsonify({'success': False, 'message': 'Erro de conexão com o banco de dados'}), 500
 
-# ADIÇÃO: Rota para login de usuário
+# ADIÇÃO: Rota para login de usuário com TÁTICA RESTRICT LOGIN
 @app.route('/login', methods=['POST'])
 def login():
     credentials = request.get_json()
@@ -637,15 +689,22 @@ def login():
     if connection:
         try:
             cursor = connection.cursor(dictionary=True)
-            query = "SELECT id, username, password_hash, full_name, role, student_id FROM users WHERE username = %s"
+            # Buscar também o contador de falhas (assumindo que a coluna failed_login_attempts existe)
+            query = "SELECT id, username, password_hash, full_name, role, student_id, failed_login_attempts FROM users WHERE username = %s"
             cursor.execute(query, (username,))
             user = cursor.fetchone()
-            cursor.close()
+            
+            MAX_ATTEMPTS = 5 # Limite de tentativas falhas
+
+            # --- 💥 TÁTICA RESTRICT LOGIN - VERIFICAÇÃO DE BLOQUEIO ---
+            if user and user.get('failed_login_attempts', 0) >= MAX_ATTEMPTS:
+                return jsonify({'success': False, 'message': 'Acesso negado. Sua conta está temporariamente bloqueada.'}), 401
+            # -----------------------------------------------------------
 
             if user and check_password_hash(user['password_hash'], password):
-                # Atualiza last_login e total_logins
+                # Login BEM-SUCEDIDO: Zera o contador de falhas
                 cursor_update = connection.cursor()
-                update_query = "UPDATE users SET last_login = NOW(), total_logins = total_logins + 1, online_status = 'Online' WHERE id = %s"
+                update_query = "UPDATE users SET last_login = NOW(), total_logins = total_logins + 1, online_status = 'Online', failed_login_attempts = 0 WHERE id = %s"
                 cursor_update.execute(update_query, (user['id'],))
                 connection.commit()
                 cursor_update.close()
@@ -663,6 +722,20 @@ def login():
                     }
                 }), 200
             else:
+                # Login FALHO: Incrementa o contador de falhas se o usuário foi encontrado
+                if user:
+                    # 💥 TÁTICA RESTRICT LOGIN - INCREMENTO DA FALHA
+                    cursor_fail_update = connection.cursor()
+                    update_fail_query = "UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = %s"
+                    cursor_fail_update.execute(update_fail_query, (user['id'],))
+                    connection.commit()
+                    cursor_fail_update.close()
+                    
+                    # Checagem de bloqueio imediato (se o novo contador atingir o limite)
+                    if user.get('failed_login_attempts', 0) + 1 >= MAX_ATTEMPTS:
+                        return jsonify({'success': False, 'message': 'Nome de usuário ou senha incorretos. A conta está agora bloqueada.'}), 401
+                    # -----------------------------------------------------------
+                    
                 return jsonify({'success': False, 'message': 'Nome de usuário ou senha incorretos.'}), 401
         except Error as e:
             print(f"Erro no login: {e}")
@@ -741,6 +814,13 @@ def get_class_by_id(class_id):
 
 @app.route('/classes/add', methods=['POST'])
 def add_class():
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     class_data = request.get_json()
     title = class_data.get('title')
     date = class_data.get('date')
@@ -770,6 +850,13 @@ def add_class():
 
 @app.route('/classes/edit/<int:class_id>', methods=['PUT'])
 def edit_class(class_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     class_data = request.get_json()
     
     connection = create_db_connection()
@@ -815,6 +902,13 @@ def edit_class(class_id):
 
 @app.route('/classes/delete/<int:class_id>', methods=['DELETE'])
 def delete_class(class_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     connection = create_db_connection()
     if connection:
         try:
@@ -896,6 +990,15 @@ def get_attendance_by_student(student_id):
 
 @app.route('/attendance/add', methods=['POST'])
 def add_attendance_record():
+    # Rota de adição de frequência é acessada pelo professor via teacher-diary.html (batch-update)
+    # ou individualmente. Deve ser protegida.
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     record_data = request.get_json()
     student_id = record_data.get('student_id')
     class_id = record_data.get('class_id')
@@ -945,6 +1048,13 @@ def add_attendance_record():
 
 @app.route('/attendance/delete/<int:record_id>', methods=['DELETE'])
 def delete_attendance_record(record_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     connection = create_db_connection()
     if connection:
         try:
@@ -1038,9 +1148,9 @@ def get_student_status_by_id(student_id):
     return jsonify({'message': 'Erro de conexão com o banco de dados'}), 500
 
 
-# ... (O restante das suas rotas de /atividades_alunos e /materials permanecem as mesmas) ...
-
-# ADIÇÃO: Rotas para Atividades dos Alunos
+# ====================================================================================================
+# ROTAS PARA ATIVIDADES DOS ALUNOS
+# ====================================================================================================
 @app.route('/atividades_alunos', methods=['GET'])
 def get_atividades_alunos():
     connection = create_db_connection()
@@ -1068,6 +1178,13 @@ def get_atividades_alunos():
 # ADIÇÃO: Rota para atualizar o status de uma aula individualmente
 @app.route('/atividades_alunos/update_aula/<int:aluno_id>', methods=['PUT'])
 def update_aula_status(aluno_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     update_data = request.get_json()
     aula_col = update_data.get('aula_col') # Ex: 'aula_1', 'aula_2'
     new_status = update_data.get('new_status') # Ex: 'Enviada', 'Verificada'
@@ -1135,6 +1252,13 @@ def get_materials():
 
 @app.route('/materials/upload', methods=['POST'])
 def upload_material():
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'Nenhum arquivo enviado.'}), 400
     
@@ -1180,6 +1304,13 @@ def download_material(filename):
 
 @app.route('/materials/edit/<int:material_id>', methods=['PUT'])
 def edit_material(material_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     material_data = request.get_json()
     
     connection = create_db_connection()
@@ -1219,6 +1350,13 @@ def edit_material(material_id):
 
 @app.route('/materials/delete/<int:material_id>', methods=['DELETE'])
 def delete_material(material_id):
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     connection = create_db_connection()
     if connection:
         try:
@@ -1265,6 +1403,13 @@ def get_system_config():
 
 @app.route('/attendance/batch-update', methods=['POST'])
 def batch_update_attendance():
+    
+    # 💥 TÁTICA AUTHORIZE ACTORS: Checagem de privilégio
+    auth_response = authorize_teacher_access()
+    if auth_response:
+        return auth_response
+    # ---------------------------------------------------
+    
     records = request.get_json()
     if not isinstance(records, list) or not records:
         return jsonify({'success': False, 'message': 'Payload inválido. Esperado um array de registros.'}), 400
@@ -1274,13 +1419,11 @@ def batch_update_attendance():
         return db_connection_error_response()
 
     cursor = connection.cursor()
-    student_ids_to_update = set() # Usar um set para evitar duplicatas
+    student_ids_to_update = set()
 
     try:
-        # 1. Iniciar a transação
         connection.start_transaction()
 
-        # 2. Iterar sobre todos os registros e executar as escritas
         for record in records:
             student_id = record.get('student_id')
             class_id = record.get('class_id')
@@ -1289,7 +1432,6 @@ def batch_update_attendance():
             if not all([student_id, class_id, status]):
                 raise ValueError(f"Registro inválido encontrado: {record}")
 
-            # Usar INSERT ... ON DUPLICATE KEY UPDATE para ser eficiente
             query = """
                 INSERT INTO attendance_records (student_id, class_id, attendance_status)
                 VALUES (%s, %s, %s)
@@ -1297,26 +1439,21 @@ def batch_update_attendance():
             """
             cursor.execute(query, (student_id, class_id, status))
             
-            # Adicionar o ID do aluno ao set para posterior atualização de status
             student_ids_to_update.add(student_id)
 
-        # 3. Notificar o Observer para cada aluno afetado APÓS todas as escritas
         for student_id in student_ids_to_update:
             attendance_subject.notify(student_id)
         
-        # 4. Se tudo deu certo, confirmar a transação
         connection.commit()
         
         return jsonify({'success': True, 'message': f'{len(records)} registros de presença salvos com sucesso.'}), 200
 
     except (Error, ValueError) as e:
-        # 5. Se qualquer erro ocorrer, reverter TODA a transação
         print(f"ERRO NA TRANSAÇÃO DE LOTE: {e}")
         connection.rollback()
         return jsonify({'success': False, 'message': f'Erro ao salvar registros em lote: {e}'}), 500
         
     finally:
-        # 6. Fechar a conexão
         if connection.is_connected():
             cursor.close()
             connection.close()
